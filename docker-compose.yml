@@ -26,7 +26,7 @@ services:
     environment:
       POSTGRES_DB: fileshare
       POSTGRES_USER: fileshare_user
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme123}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-BabihutaN!23}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
