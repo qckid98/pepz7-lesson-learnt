@@ -228,6 +228,7 @@ export default function ViewerFileManager() {
   function renderTreeNodes(nodes: TreeNode[], depth = 0): React.ReactNode {
     return nodes.map((node) => {
       const isActive = currentFolderId === node.id && viewMode === "all";
+      const isPrivate = node.visibility === "PRIVATE";
       return (
         <div key={node.id}>
           <button
@@ -239,6 +240,7 @@ export default function ViewerFileManager() {
           >
             <FolderIcon className="w-4 h-4 flex-shrink-0 text-blue-400" />
             <span className="truncate flex-1 text-left">{node.name}</span>
+            {isPrivate && <LockIcon className="w-3 h-3 text-amber-500 flex-shrink-0" />}
           </button>
           {node.children.length > 0 && renderTreeNodes(node.children, depth + 1)}
         </div>
