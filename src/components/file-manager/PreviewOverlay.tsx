@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   XIcon,
   DownloadIcon,
@@ -8,6 +8,10 @@ import {
   ChevronRightIcon,
   FileIcon,
   CalendarIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
+  RotateCwIcon,
+  MaximizeIcon,
 } from "lucide-react";
 import { formatFileSize, getFileCategory } from "@/lib/validators";
 
@@ -40,11 +44,21 @@ export default function PreviewOverlay({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
 
+  // Image zoom state
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStart = useRef({ x: 0, y: 0 });
+
   const fetchPreviewUrl = useCallback(async () => {
     if (!file) return;
     setLoading(true);
     setError(false);
     setPreviewUrl(null);
+    setZoom(1);
+    setRotation(0);
+    setPan({ x: 0, y: 0 });
     try {
       const res = await fetch(`/api/files/${file.id}`);
       if (!res.ok) throw new Error("Failed to fetch");
@@ -68,6 +82,9 @@ export default function PreviewOverlay({
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowLeft" && hasPrev && onNavigate) onNavigate("prev");
       if (e.key === "ArrowRight" && hasNext && onNavigate) onNavigate("next");
+      if (e.key === "+" || e.key === "=") setZoom((z) => Math.min(z + 0.25, 5));
+      if (e.key === "-") setZoom((z) => Math.max(z - 0.25, 0.25));
+      if (e.key === "0") { setZoom(1); setPan({ x: 0, y: 0 }); setRotation(0); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -77,11 +94,35 @@ export default function PreviewOverlay({
 
   const category = getFileCategory(file.mimeType);
 
+  // Image pan handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (zoom <= 1) return;
+    setIsPanning(true);
+    panStart.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+  };
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isPanning) return;
+    setPan({ x: e.clientX - panStart.current.x, y: e.clientY - panStart.current.y });
+  };
+  const handleMouseUp = () => setIsPanning(false);
+
+  // Touch pan handlers for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (zoom <= 1 || e.touches.length !== 1) return;
+    setIsPanning(true);
+    panStart.current = { x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y };
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPanning || e.touches.length !== 1) return;
+    setPan({ x: e.touches[0].clientX - panStart.current.x, y: e.touches[0].clientY - panStart.current.y });
+  };
+  const handleTouchEnd = () => setIsPanning(false);
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex flex-col" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/90 flex flex-col" onClick={onClose}>
       {/* Top bar */}
       <div
-        className="flex items-center justify-between px-3 sm:px-4 py-3 bg-gray-900/95 border-b border-gray-700"
+        className="flex items-center justify-between px-3 sm:px-4 py-3 bg-gray-900/95 border-b border-gray-700 flex-shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -108,8 +149,42 @@ export default function PreviewOverlay({
             {file.name}
           </span>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Download — hidden on mobile, shown in bottom bar instead */}
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+          {/* Zoom controls — image only */}
+          {category === "image" && previewUrl && (
+            <div className="flex items-center gap-1 mr-1 sm:mr-2">
+              <button
+                onClick={() => setZoom((z) => Math.max(z - 0.25, 0.25))}
+                className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition"
+                title="Zoom out (-)"
+              >
+                <ZoomOutIcon className="w-4 h-4" />
+              </button>
+              <span className="text-xs text-gray-400 w-10 text-center">{Math.round(zoom * 100)}%</span>
+              <button
+                onClick={() => setZoom((z) => Math.min(z + 0.25, 5))}
+                className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition"
+                title="Zoom in (+)"
+              >
+                <ZoomInIcon className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setRotation((r) => r + 90)}
+                className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition hidden sm:block"
+                title="Rotate"
+              >
+                <RotateCwIcon className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); setRotation(0); }}
+                className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition hidden sm:block"
+                title="Reset (0)"
+              >
+                <MaximizeIcon className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          {/* Download — hidden on mobile, shown in bottom bar */}
           <a
             href={`/api/files/${file.id}/download`}
             onClick={(e) => e.stopPropagation()}
@@ -130,7 +205,7 @@ export default function PreviewOverlay({
 
       {/* Preview area */}
       <div
-        className="flex-1 flex items-center justify-center p-4 overflow-hidden"
+        className="flex-1 overflow-hidden flex items-center justify-center p-2 sm:p-4 relative"
         onClick={(e) => e.stopPropagation()}
       >
         {loading ? (
@@ -165,16 +240,36 @@ export default function PreviewOverlay({
             </a>
           </div>
         ) : previewUrl && category === "image" ? (
-          <img
-            src={previewUrl}
-            alt={file.name}
-            className="max-w-full max-h-full object-contain rounded-lg"
-          />
+          <div
+            className="w-full h-full overflow-hidden flex items-center justify-center"
+            style={{ cursor: zoom > 1 ? (isPanning ? "grabbing" : "grab") : "default" }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewUrl}
+              alt={file.name}
+              className="max-w-full max-h-full object-contain rounded-lg select-none"
+              style={{
+                transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px) rotate(${rotation}deg)`,
+                transition: isPanning ? "none" : "transform 0.2s ease-out",
+                transformOrigin: "center",
+              }}
+              draggable={false}
+            />
+          </div>
         ) : previewUrl && category === "video" ? (
           <video
             src={previewUrl}
             controls
             autoPlay
+            playsInline
             className="max-w-full max-h-full rounded-lg"
           >
             Browser tidak mendukung video.
@@ -192,13 +287,13 @@ export default function PreviewOverlay({
         ) : previewUrl && category === "pdf" ? (
           <iframe
             src={`/api/files/${file.id}/proxy`}
-            className="w-full h-full max-w-5xl rounded-lg bg-white"
+            className="w-full h-full rounded-lg bg-white"
             title={file.name}
           />
         ) : previewUrl && category === "text" ? (
           <iframe
             src={previewUrl}
-            className="w-full h-full max-w-4xl rounded-lg bg-white"
+            className="w-full h-full rounded-lg bg-white"
             title={file.name}
           />
         ) : null}
@@ -206,7 +301,7 @@ export default function PreviewOverlay({
 
       {/* Bottom bar — mobile: big download button + info; desktop: info only */}
       <div
-        className="bg-gray-900/95 border-t border-gray-700"
+        className="bg-gray-900/95 border-t border-gray-700 flex-shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Mobile download button */}
