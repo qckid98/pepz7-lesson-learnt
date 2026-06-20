@@ -55,7 +55,8 @@ export async function GET(
       data: { downloadCount: { increment: 1 } },
     });
 
-    return NextResponse.json({ downloadUrl });
+    // Redirect directly to presigned URL (auto-download)
+    return NextResponse.redirect(downloadUrl, 302);
   } catch (error) {
     console.error("Download error:", error);
     return NextResponse.json(
