@@ -9,6 +9,6 @@ export default middleware((req) => {
 });
 
 export const config = {
-  // Match all routes EXCEPT: static files, images, auth API
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth).*)"],
+  // Match all routes EXCEPT: static files, images, favicon, auth API, public assets
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|favicon.png|logo.png|api/auth).*)"],
 };
