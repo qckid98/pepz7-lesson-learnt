@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getDownloadPresignedUrl } from "@/lib/s3";
+import { s3Client } from "@/lib/s3";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+
+export const runtime = "nodejs";
 
 /**
  * GET /api/files/[id]/download
- * Generate download URL and log the download
+ * Stream file from S3 through server with Content-Disposition: attachment
+ * Works on all browsers (Desktop Chrome/Firefox/Safari, iOS Safari, Android Chrome)
  */
 export async function GET(
   request: NextRequest,
@@ -19,7 +23,7 @@ export async function GET(
       include: { folder: true },
     });
 
-    if (!file) {
+    if (!file || file.deletedAt) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
@@ -29,12 +33,30 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Generate download presigned URL
-    const downloadUrl = await getDownloadPresignedUrl(
-      file.s3Key,
-      3600,
-      file.originalName
-    );
+    // Fetch file from S3
+    const command = new GetObjectCommand({
+      Bucket: process.env.S3_BUCKET || "file-sharing-prod",
+      Key: file.s3Key,
+    });
+
+    let s3Response;
+    try {
+      s3Response = await s3Client.send(command);
+    } catch (s3Err) {
+      console.error("S3 fetch error for key:", file.s3Key, s3Err);
+      return NextResponse.json(
+        { error: "File not found in storage" },
+        { status: 404 }
+      );
+    }
+
+    const body = s3Response.Body as import("stream").Readable;
+    if (!body) {
+      return NextResponse.json(
+        { error: "Empty response from storage" },
+        { status: 500 }
+      );
+    }
 
     // Log the download
     const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
@@ -43,7 +65,7 @@ export async function GET(
     await db.downloadLog.create({
       data: {
         fileId: file.id,
-        userId: session?.user?.id || null,
+        userId: session.user.id,
         ipAddress: ip,
         userAgent: userAgent.substring(0, 255),
       },
@@ -55,13 +77,30 @@ export async function GET(
       data: { downloadCount: { increment: 1 } },
     });
 
-    // Redirect directly to presigned URL (auto-download)
-    return NextResponse.redirect(downloadUrl, 302);
+    // Convert stream to buffer
+    const chunks: Buffer[] = [];
+    for await (const chunk of body) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const buffer = Buffer.concat(chunks);
+
+    // Set headers — force download with original filename
+    // Use application/octet-stream to prevent Safari from opening inline
+    // Include both filename and filename* for RFC 5987 compatibility
+    const encodedFilename = encodeURIComponent(file.originalName);
+    const headers = new Headers();
+    headers.set("Content-Type", "application/octet-stream");
+    headers.set(
+      "Content-Disposition",
+      `attachment; filename="${encodedFilename}"; filename*=UTF-8''${encodedFilename}`
+    );
+    headers.set("Content-Length", buffer.length.toString());
+    headers.set("Cache-Control", "no-store");
+
+    return new NextResponse(buffer, { headers });
   } catch (error) {
     console.error("Download error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -419,7 +419,7 @@ export default function FileManager() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="w-10 px-4 py-2"><input type="checkbox" onChange={(e) => e.target.checked ? store.selectAll(allIds) : store.clearSelection()} className="rounded" /></th>
+                    <th className="w-10 px-4 py-2"><input type="checkbox" checked={allIds.length > 0 && allIds.every((id) => store.selectedIds.has(id))} onChange={(e) => e.target.checked ? store.selectAll(allIds) : store.clearSelection()} className="rounded" /></th>
                     <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer" onClick={() => store.setSort("name")}>Nama</th>
                     <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Tipe</th>
                     <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer hidden md:table-cell" onClick={() => store.setSort("size")}>Ukuran</th>
@@ -435,6 +435,7 @@ export default function FileManager() {
                       selected={store.selectedIds.has(item.id)}
                       renaming={store.renamingId === item.id}
                       onSelect={(e) => handleSelect(e, item.id)}
+                      onToggleSelect={() => store.toggleSelect(item.id)}
                       onOpen={() => item._isFolder ? handleNavigate(item.id) : setPreviewFileId(item.id)}
                       onContextMenu={(e) => handleContextMenu(e, item._isFolder ? "folder" : "file", item.id)}
                       onDragStart={(e) => handleDragStart(e, item.id, item._isFolder ? "folder" : "file")}
@@ -522,6 +523,9 @@ export default function FileManager() {
     }
     if (e.ctrlKey || e.metaKey) {
       store.toggleSelect(id);
+    } else if (store.selectedIds.has(id) && store.selectedIds.size === 1) {
+      // Click on already-selected item → deselect
+      store.clearSelection();
     } else {
       store.clearSelection();
       store.toggleSelect(id);
@@ -767,6 +771,7 @@ function ListRow(props: {
   selected: boolean;
   renaming: boolean;
   onSelect: (e: React.MouseEvent) => void;
+  onToggleSelect: () => void;
   onOpen: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onDragStart: (e: React.DragEvent) => void;
@@ -792,7 +797,7 @@ function ListRow(props: {
       onContextMenu={props.onContextMenu}
       className={`cursor-pointer transition ${props.dragOver ? "bg-blue-100" : props.selected ? "bg-blue-50" : "hover:bg-gray-50"}`}
     >
-      <td className="px-4 py-2.5"><input type="checkbox" checked={props.selected} onChange={() => {}} onClick={(e) => e.stopPropagation()} className="rounded" /></td>
+      <td className="px-4 py-2.5"><input type="checkbox" checked={props.selected} onChange={() => props.onToggleSelect()} onClick={(e) => e.stopPropagation()} className="rounded" /></td>
       <td className="px-2 py-2.5">
         <div className="flex items-center gap-2">
           {isFolder ? (
