@@ -1,0 +1,63 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fileshare-app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - fileshare
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: fileshare-db
+    restart: always
+    environment:
+      POSTGRES_DB: fileshare
+      POSTGRES_USER: fileshare_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme123}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fileshare_user -d fileshare"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fileshare
+
+  nginx:
+    image: nginx:alpine
+    container_name: fileshare-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - app
+    networks:
+      - fileshare
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  fileshare:
+    driver: bridge
