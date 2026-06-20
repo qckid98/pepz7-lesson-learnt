@@ -96,6 +96,17 @@ export default function ViewerFileManager() {
   const [searchQuery, setSearchQuery] = useState("");
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check if current user is admin
+  useEffect(() => {
+    fetch("/api/auth/session")
+      .then((r) => r.json())
+      .then((data) => {
+        setIsAdmin(data?.user?.role === "ADMIN");
+      })
+      .catch(() => {});
+  }, []);
 
   // ===== Fetch data =====
   const fetchData = useCallback(async () => {
@@ -210,9 +221,9 @@ export default function ViewerFileManager() {
     });
     return roots;
   }
-  // Filter out PRIVATE folders — viewers should not see them
-  const publicFolders = allFolders.filter((f) => f.visibility === "PUBLIC");
-  const tree = buildTree(publicFolders);
+  // Filter out PRIVATE folders for viewers only — admin can see all
+  const visibleFolders = isAdmin ? allFolders : allFolders.filter((f) => f.visibility === "PUBLIC");
+  const tree = buildTree(visibleFolders);
 
   function renderTreeNodes(nodes: TreeNode[], depth = 0): React.ReactNode {
     return nodes.map((node) => {
