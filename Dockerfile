@@ -2,10 +2,6 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-# Fix DNS/network issues
-RUN echo "nameserver 8.8.8.8" > /etc/resolv.conf && \
-    echo "nameserver 8.8.4.4" >> /etc/resolv.conf
-
 COPY package.json package-lock.json ./
 RUN npm ci --fetch-timeout=60000 --fetch-retries=5
 COPY . .
