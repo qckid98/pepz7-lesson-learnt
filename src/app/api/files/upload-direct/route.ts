@@ -110,9 +110,13 @@ export async function POST(request: NextRequest) {
         // Convert back to Buffer (latin1 preserves binary data)
         fileBuffer = Buffer.from(fileBody, "latin1");
       } else if (fieldName === "folderId") {
-        folderId = bodyContent.replace(/\r\n$/, "") || null;
+        // Trim ALL whitespace (including \r\n, spaces) from folderId
+        folderId = bodyContent.trim() || null;
+        console.log("[upload-direct] Parsed folderId:", JSON.stringify(folderId));
       }
     }
+
+    console.log("[upload-direct] Final folderId:", JSON.stringify(folderId), "fileName:", fileName);
 
     if (!fileBuffer || !fileName) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
