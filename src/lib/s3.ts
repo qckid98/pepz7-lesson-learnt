@@ -65,12 +65,14 @@ export async function getDownloadPresignedUrl(
 
 /**
  * Generate presigned URL for previewing (inline, not download)
+ * For video/audio: include 'range' in signableHeaders to support streaming/seeking
  */
 export async function getPreviewPresignedUrl(
   key: string,
   contentType: string,
   expiresIn: number = 3600
 ): Promise<string> {
+  const isStreamable = contentType.startsWith("video/") || contentType.startsWith("audio/");
   const command = new GetObjectCommand({
     Bucket: BUCKET,
     Key: key,
@@ -78,9 +80,13 @@ export async function getPreviewPresignedUrl(
     ResponseContentDisposition: "inline",
   });
 
+  const signableHeaders = isStreamable
+    ? new Set(["host", "range"])
+    : new Set(["host"]);
+
   return getSignedUrl(s3Client, command, {
     expiresIn,
-    signableHeaders: new Set(["host"]),
+    signableHeaders,
   });
 }
 
