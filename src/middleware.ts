@@ -9,6 +9,7 @@ export default middleware((req) => {
 });
 
 export const config = {
-  // Match all routes EXCEPT: static files, images, favicon, auth API, public assets
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|favicon.png|logo.png|api/auth).*)"],
+  // Match all routes EXCEPT: static files, images, favicon, auth API, ALL API routes
+  // API routes handle their own auth — middleware breaks large file uploads if it intercepts them
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|favicon.png|logo.png|api).*)"],
 };
