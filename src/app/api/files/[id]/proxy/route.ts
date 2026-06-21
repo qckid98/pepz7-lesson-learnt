@@ -39,9 +39,9 @@ export async function GET(
       Key: file.s3Key,
     });
 
-    let response;
+    let s3Response;
     try {
-      response = await s3Client.send(command);
+      s3Response = await s3Client.send(command);
     } catch (s3Err) {
       console.error("S3 fetch error for key:", file.s3Key, s3Err);
       return NextResponse.json(
@@ -50,7 +50,7 @@ export async function GET(
       );
     }
 
-    const body = response.Body as import("stream").Readable;
+    const body = s3Response.Body as import("stream").Readable;
     if (!body) {
       return NextResponse.json(
         { error: "Empty response from storage" },
@@ -72,22 +72,28 @@ export async function GET(
       );
     }
 
-    // Set headers — binary safe
+    // Set headers — binary safe, explicitly prevent JSON override
     const headers = new Headers();
     headers.set("Content-Type", file.mimeType);
     headers.set("Content-Length", buffer.length.toString());
     headers.set("Cache-Control", "public, max-age=3600");
-    // Do NOT set Accept-Ranges — proxy doesn't support range requests
-    // pdf.js will try range request if this header is present, causing "Bad end offset" error
+    // Explicitly prevent Next.js from overriding Content-Type to JSON
+    headers.set("X-Content-Type-Options", "nosniff");
 
     // Use buffer.buffer.slice() to get a fresh ArrayBuffer copy
-    // This avoids "detached ArrayBuffer" errors in Next.js response
     const arrayBuffer = buffer.buffer.slice(
       buffer.byteOffset,
       buffer.byteOffset + buffer.byteLength
     );
 
-    return new NextResponse(arrayBuffer, { headers });
+    // Create response with explicit Content-Type to prevent override
+    const nextResp = new NextResponse(arrayBuffer, {
+      status: 200,
+      headers,
+    });
+    // Force-set Content-Type after creation (Next.js may override during construction)
+    nextResp.headers.set("Content-Type", file.mimeType);
+    return nextResp;
   } catch (error) {
     console.error("Proxy error:", error);
     const message = error instanceof Error ? error.message : "Internal server error";
