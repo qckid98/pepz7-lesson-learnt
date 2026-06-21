@@ -450,27 +450,74 @@ export default function FileManager() {
       className="flex h-[calc(100vh-4rem)]"
       onDragOver={(e) => { e.preventDefault(); setIsDragOverPage(true); }}
       onDragLeave={() => setIsDragOverPage(false)}
-      onDrop={(e) => {
+      onDrop={async (e) => {
         e.preventDefault();
         setIsDragOverPage(false);
-        if (e.dataTransfer.files.length > 0) {
-          // Check if this is a folder drop (files have webkitRelativePath or items have directory)
-          const items = e.dataTransfer.items;
-          let isFolderDrop = false;
-          if (items && items.length > 0) {
-            for (let i = 0; i < items.length; i++) {
-              const entry = items[i].webkitGetAsEntry?.();
-              if (entry && entry.isDirectory) {
-                isFolderDrop = true;
-                break;
+
+        const items = e.dataTransfer.items;
+        const droppedFiles: File[] = [];
+
+        // If items API available, traverse directory tree recursively
+        if (items && items.length > 0) {
+          const traversePromises: Promise<void>[] = [];
+
+          const traverseEntry = (entry: FileSystemEntry, path: string = ""): Promise<void> => {
+            return new Promise((resolve) => {
+              if (entry.isFile) {
+                (entry as FileSystemFileEntry).file((file: File) => {
+                  // Set webkitRelativePath manually since we're traversing
+                  Object.defineProperty(file, "webkitRelativePath", {
+                    value: path + file.name,
+                    writable: false,
+                  });
+                  droppedFiles.push(file);
+                  resolve();
+                }, () => resolve());
+              } else if (entry.isDirectory) {
+                const dirReader = (entry as FileSystemDirectoryEntry).createReader();
+                const allEntries: FileSystemEntry[] = [];
+                const readEntries = () => {
+                  dirReader.readEntries((entries: FileSystemEntry[]) => {
+                    if (entries.length === 0) {
+                      // Done reading this directory, recurse into children
+                      const childPromises = allEntries.map((child) =>
+                        traverseEntry(child, path + entry.name + "/")
+                      );
+                      Promise.all(childPromises).then(() => resolve());
+                    } else {
+                      allEntries.push(...entries);
+                      readEntries(); // Continue reading (readEntries returns max 100 at a time)
+                    }
+                  }, () => resolve());
+                };
+                readEntries();
+              } else {
+                resolve();
               }
+            });
+          };
+
+          for (let i = 0; i < items.length; i++) {
+            const entry = items[i].webkitGetAsEntry?.();
+            if (entry) {
+              traversePromises.push(traverseEntry(entry));
             }
           }
-          if (isFolderDrop) {
-            handleFolderUpload(e.dataTransfer.files);
-          } else {
-            handleUpload(e.dataTransfer.files);
+
+          await Promise.all(traversePromises);
+
+          if (droppedFiles.length > 0) {
+            // Create a FileList-like object
+            const dt = new DataTransfer();
+            droppedFiles.forEach((f) => dt.items.add(f));
+            handleFolderUpload(dt.files);
+            return;
           }
+        }
+
+        // Fallback: regular file drop
+        if (e.dataTransfer.files.length > 0) {
+          handleUpload(e.dataTransfer.files);
         }
       }}
     >
@@ -665,6 +712,9 @@ export default function FileManager() {
         type="file"
         multiple
         className="hidden"
+        // @ts-expect-error — webkitdirectory is non-standard but widely supported
+        webkitdirectory=""
+        directory=""
         onChange={(e) => {
           if (e.target.files && e.target.files.length > 0) handleFolderUpload(e.target.files);
           e.target.value = ""; // Reset so same folder can be selected again
