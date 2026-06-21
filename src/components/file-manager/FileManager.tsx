@@ -31,6 +31,8 @@ import {
   FileTypeIcon,
   ArrowLeftIcon,
   MenuIcon,
+  CheckCircleIcon,
+  XCircleIcon,
 } from "lucide-react";
 
 // ============ Helper: File icon by type ============
@@ -72,6 +74,7 @@ export default function FileManager() {
   const [isDragOverPage, setIsDragOverPage] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [uploads, setUploads] = useState<Array<{ id: string; name: string; size: number; progress: number; status: "uploading" | "done" | "error"; error?: string }>>([]);
 
   // ===== Fetch data =====
   const fetchData = useCallback(async () => {
@@ -174,15 +177,59 @@ export default function FileManager() {
   };
 
   const handleUpload = async (files: FileList) => {
-    for (const file of Array.from(files)) {
+    const fileArray = Array.from(files);
+    const newUploads = fileArray.map((file, i) => ({
+      id: `${Date.now()}-${i}`,
+      name: file.name,
+      size: file.size,
+      progress: 0,
+      status: "uploading" as const,
+    }));
+    setUploads((prev) => [...prev, ...newUploads]);
+
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      const uploadId = newUploads[i].id;
       const formData = new FormData();
       formData.append("file", file);
       formData.append("folderId", store.currentFolderId || "");
+
       try {
-        await fetch("/api/files/upload-direct", { method: "POST", body: formData });
-      } catch (e) { console.error("Upload error:", e); }
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/files/upload-direct");
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const progress = Math.round((event.loaded / event.total) * 100);
+              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress } : u));
+            }
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress: 100, status: "done" } : u));
+              resolve();
+            } else {
+              let errMsg = "Upload gagal";
+              try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch {}
+              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: errMsg } : u));
+              reject(new Error(errMsg));
+            }
+          };
+          xhr.onerror = () => {
+            setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: "Network error" } : u));
+            reject(new Error("Network error"));
+          };
+          xhr.send(formData);
+        });
+      } catch (e) {
+        console.error("Upload error:", e);
+      }
     }
     fetchData();
+    // Auto-clear completed uploads after 3 seconds
+    setTimeout(() => {
+      setUploads((prev) => prev.filter((u) => u.status === "uploading"));
+    }, 3000);
   };
 
   const handleRename = async (id: string, type: "file" | "folder", newName: string) => {
@@ -470,6 +517,58 @@ export default function FileManager() {
             <UploadIcon className="w-12 h-12 text-blue-500 mb-2" />
             <p className="text-lg font-medium text-gray-700">Drop file untuk upload</p>
             <p className="text-sm text-gray-500">ke {store.currentFolderId ? "folder ini" : "root"}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Upload progress panel */}
+      {uploads.length > 0 && (
+        <div className="fixed bottom-4 right-4 left-4 sm:left-auto z-50 bg-white rounded-xl shadow-2xl border border-gray-200 w-auto sm:w-80 max-h-96 overflow-y-auto">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-900">
+              Upload ({uploads.filter((u) => u.status === "done").length}/{uploads.length})
+            </h3>
+            <button
+              onClick={() => setUploads((prev) => prev.filter((u) => u.status === "uploading"))}
+              className="text-gray-400 hover:text-gray-600 text-xs"
+            >
+              {uploads.every((u) => u.status !== "uploading") ? "Tutup" : ""}
+            </button>
+          </div>
+          <div className="p-2 space-y-2">
+            {uploads.map((u) => (
+              <div key={u.id} className="px-2 py-2 rounded-lg bg-gray-50">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <span className="text-xs font-medium text-gray-900 truncate">{u.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                    {u.status === "done" && <CheckCircleIcon className="w-4 h-4 text-green-500" />}
+                    {u.status === "error" && <XCircleIcon className="w-4 h-4 text-red-500" />}
+                    {u.status === "uploading" && (
+                      <span className="text-xs text-blue-600 font-medium tabular-nums">{u.progress}%</span>
+                    )}
+                  </div>
+                </div>
+                {u.status === "uploading" && (
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${u.progress}%` }}
+                    />
+                  </div>
+                )}
+                {u.status === "error" && (
+                  <p className="text-xs text-red-600 mt-1">{u.error}</p>
+                )}
+                {u.status === "done" && (
+                  <p className="text-xs text-green-600">
+                    {formatFileSize(BigInt(u.size))} • Selesai
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}

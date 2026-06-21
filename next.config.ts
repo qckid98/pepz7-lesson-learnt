@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   experimental: {
     serverActions: {
-      bodySizeLimit: "10mb",
+      bodySizeLimit: "100mb",
     },
   },
   images: {
@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "s3.biznetgio.com",
+      },
+      {
+        protocol: "https",
+        hostname: "nos.wjv-1.neo.id",
       },
     ],
   },
