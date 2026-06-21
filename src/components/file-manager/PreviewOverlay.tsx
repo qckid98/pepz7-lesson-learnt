@@ -56,7 +56,15 @@ export default function PreviewOverlay({
 
   const fetchPreviewUrl = useCallback(async () => {
     if (!file) return;
-    
+
+    // For XLSX, DOCX, PPTX — component handles fetching via proxy directly
+    // Skip presigned URL fetch (not needed, avoids double fetch / loop)
+    const cat = getFileCategory(file.mimeType, file.extension);
+    if (cat === "spreadsheet" || cat === "document" || cat === "presentation") {
+      setLoading(false);
+      return;
+    }
+
     // Skip preview for very large files (>50MB) — too slow to load
     const sizeNum = Number(file.size);
     if (sizeNum > 50 * 1024 * 1024) {
@@ -344,7 +352,7 @@ export default function PreviewOverlay({
               Browser tidak mendukung audio.
             </audio>
           </div>
-        ) : previewUrl && category === "pdf" ? (
+        ) : category === "pdf" ? (
           <iframe
             src={`/api/files/${file.id}/proxy`}
             className="w-full h-full rounded-lg bg-white"
