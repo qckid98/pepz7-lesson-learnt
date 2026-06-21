@@ -2,7 +2,7 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci --fetch-timeout=60000 --fetch-retries=5
 COPY . .
 RUN npx prisma generate
