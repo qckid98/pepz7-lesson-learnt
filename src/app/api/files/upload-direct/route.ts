@@ -4,17 +4,50 @@ import { db } from "@/lib/db";
 import { s3Client, generateS3Key } from "@/lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { isFileTypeAllowed, getFileExtension } from "@/lib/validators";
-import Busboy from "busboy";
-import { Readable } from "stream";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
+// MIME type fallback from extension
+const EXT_TO_MIME: Record<string, string> = {
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  txt: "text/plain",
+  csv: "text/csv",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  zip: "application/zip",
+  rar: "application/x-rar-compressed",
+  "7z": "application/x-7z-compressed",
+};
+
+function getMimeType(filename: string, providedType: string): string {
+  if (providedType && providedType !== "application/octet-stream") {
+    return providedType;
+  }
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  return EXT_TO_MIME[ext] || "application/octet-stream";
+}
+
 /**
  * POST /api/files/upload-direct
- * Upload file via server proxy using busboy for multipart parsing.
- * Handles large files (video, pptx, etc) that fail with request.formData()
+ * Upload file via server proxy (avoids CORS issues with S3)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -23,88 +56,70 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Parse multipart form data using busboy (handles large files)
+    // Read the entire body as arrayBuffer first, then parse
+    // This avoids streaming issues with busboy/formData in Next.js
+    const body = await request.arrayBuffer();
     const contentType = request.headers.get("content-type") || "";
+
     if (!contentType.includes("multipart/form-data")) {
       return NextResponse.json({ error: "Expected multipart/form-data" }, { status: 400 });
     }
 
-    const bb = Busboy({ headers: { "content-type": contentType } });
+    // Parse multipart manually from the buffer
+    const boundary = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/);
+    if (!boundary) {
+      return NextResponse.json({ error: "No boundary found" }, { status: 400 });
+    }
+    const boundaryStr = `--${boundary[1] || boundary[2]}`;
 
-    const fields: Record<string, string> = {};
-    let fileBuffer: Buffer | null = null;
+    // Convert to string for parsing headers, keep as buffer for file data
+    const bodyStr = Buffer.from(body).toString("latin1");
+    const parts = bodyStr.split(boundaryStr).filter((p) => p.trim() && p !== "--" && p !== "--\r\n");
+
     let fileName = "";
     let fileType = "";
-    let fileSize = 0;
+    let fileBuffer: Buffer | null = null;
+    let folderId: string | null = null;
 
-    const filePromise = new Promise<void>((resolve, reject) => {
-      bb.on("file", (name, file, info) => {
-        const { filename, mimeType } = info;
-        if (name !== "file") {
-          file.resume();
-          return;
-        }
-        fileName = filename;
-        fileType = mimeType;
-        const chunks: Buffer[] = [];
-        file.on("data", (chunk) => {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-        });
-        file.on("end", () => {
-          fileBuffer = Buffer.concat(chunks);
-          fileSize = fileBuffer.length;
-        });
-        file.on("error", reject);
-      });
+    for (const part of parts) {
+      // Remove leading \r\n
+      const trimmed = part.replace(/^\r\n/, "");
 
-      bb.on("field", (name, value) => {
-        fields[name] = value;
-      });
+      // Find header/body separator
+      const headerEnd = trimmed.indexOf("\r\n\r\n");
+      if (headerEnd === -1) continue;
 
-      bb.on("finish", resolve);
-      bb.on("error", reject);
-    });
+      const headers = trimmed.substring(0, headerEnd);
+      const bodyContent = trimmed.substring(headerEnd + 4);
 
-    // Pipe request body to busboy using Web Stream → Node Stream conversion
-    const nodeStream = Readable.fromWeb(request.body as import("stream/web").ReadableStream);
-    nodeStream.pipe(bb);
+      // Extract Content-Disposition
+      const nameMatch = headers.match(/name="([^"]+)"/);
+      if (!nameMatch) continue;
+      const fieldName = nameMatch[1];
 
-    await filePromise;
+      if (fieldName === "file") {
+        const filenameMatch = headers.match(/filename="([^"]+)"/);
+        fileName = filenameMatch ? filenameMatch[1] : "unnamed";
+
+        // Extract content type from header
+        const ctMatch = headers.match(/Content-Type:\s*([^\r\n]+)/i);
+        fileType = ctMatch ? ctMatch[1].trim() : "";
+
+        // Body content ends with \r\n before next boundary
+        const fileBody = bodyContent.replace(/\r\n$/, "");
+        // Convert back to Buffer (latin1 preserves binary data)
+        fileBuffer = Buffer.from(fileBody, "latin1");
+      } else if (fieldName === "folderId") {
+        folderId = bodyContent.replace(/\r\n$/, "") || null;
+      }
+    }
 
     if (!fileBuffer || !fileName) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Fallback: detect mime type from extension if not provided
-    if (!fileType) {
-      const ext = fileName.split(".").pop()?.toLowerCase() || "";
-      const extToMime: Record<string, string> = {
-        pdf: "application/pdf",
-        doc: "application/msword",
-        docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        xls: "application/vnd.ms-excel",
-        xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        ppt: "application/vnd.ms-powerpoint",
-        pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        txt: "text/plain",
-        csv: "text/csv",
-        jpg: "image/jpeg",
-        jpeg: "image/jpeg",
-        png: "image/png",
-        gif: "image/gif",
-        webp: "image/webp",
-        svg: "image/svg+xml",
-        mp4: "video/mp4",
-        webm: "video/webm",
-        mov: "video/quicktime",
-        mp3: "audio/mpeg",
-        wav: "audio/wav",
-        zip: "application/zip",
-        rar: "application/x-rar-compressed",
-        "7z": "application/x-7z-compressed",
-      };
-      fileType = extToMime[ext] || "application/octet-stream";
-    }
+    const fileSize = fileBuffer.length;
+    fileType = getMimeType(fileName, fileType);
 
     // Validate file type
     if (!isFileTypeAllowed(fileType)) {
@@ -113,8 +128,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const folderId = fields.folderId || null;
 
     // If folderId provided, verify folder exists
     if (folderId) {
