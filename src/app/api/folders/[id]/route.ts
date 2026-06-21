@@ -121,7 +121,10 @@ export async function PATCH(
 
 /**
  * DELETE /api/folders/[id]
- * Delete folder and all its contents (Admin only)
+ * Delete folder and ALL its contents recursively (Admin only)
+ * - Delete all files in this folder from S3 + DB
+ * - Recursively delete all sub-folders
+ * - Then delete the folder itself
  */
 export async function DELETE(
   request: NextRequest,
@@ -135,31 +138,46 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Check if folder has children
-    const folder = await db.folder.findUnique({
-      where: { id },
-      include: { _count: { select: { files: true, children: true } } },
-    });
-
+    const folder = await db.folder.findUnique({ where: { id } });
     if (!folder) {
       return NextResponse.json({ error: "Folder not found" }, { status: 404 });
     }
 
-    if (folder._count.children > 0) {
-      return NextResponse.json(
-        { error: "Cannot delete folder with sub-folders. Delete sub-folders first." },
-        { status: 400 }
-      );
+    // Recursive delete function
+    async function deleteFolderRecursive(folderId: string): Promise<void> {
+      // Get all sub-folders
+      const subFolders = await db.folder.findMany({
+        where: { parentId: folderId },
+        select: { id: true },
+      });
+
+      // Recursively delete each sub-folder
+      for (const sub of subFolders) {
+        await deleteFolderRecursive(sub.id);
+      }
+
+      // Get all files in this folder
+      const files = await db.file.findMany({
+        where: { folderId },
+        select: { id: true, s3Key: true },
+      });
+
+      // Delete files from S3 + DB
+      for (const file of files) {
+        try {
+          const { deleteFile } = await import("@/lib/s3");
+          await deleteFile(file.s3Key);
+        } catch {
+          // Ignore S3 errors — still delete from DB
+        }
+        await db.file.delete({ where: { id: file.id } });
+      }
+
+      // Finally delete the folder itself
+      await db.folder.delete({ where: { id: folderId } });
     }
 
-    if (folder._count.files > 0) {
-      return NextResponse.json(
-        { error: "Cannot delete folder with files. Delete or move files first." },
-        { status: 400 }
-      );
-    }
-
-    await db.folder.delete({ where: { id } });
+    await deleteFolderRecursive(id);
 
     return NextResponse.json({ success: true });
   } catch (error) {

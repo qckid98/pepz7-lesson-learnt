@@ -351,6 +351,11 @@ export default function FileManager() {
   };
 
   const handleTrash = async (fileIds: string[], folderIds: string[]) => {
+    const hasFolders = folderIds.length > 0;
+    const confirmMsg = hasFolders
+      ? `Pindahkan ${fileIds.length + folderIds.length} item ke tempat sampah? Folder beserta semua isinya akan dipindahkan.`
+      : `Pindahkan ${fileIds.length} file ke tempat sampah?`;
+    if (!confirm(confirmMsg)) return;
     await fetch("/api/files/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
