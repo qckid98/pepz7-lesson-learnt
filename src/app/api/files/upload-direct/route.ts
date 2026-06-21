@@ -48,6 +48,7 @@ function getMimeType(filename: string, providedType: string): string {
 /**
  * POST /api/files/upload-direct
  * Upload file via server proxy (avoids CORS issues with S3)
+ * Uses request.formData() which handles binary data correctly
  */
 export async function POST(request: NextRequest) {
   try {
@@ -56,74 +57,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Read the entire body as arrayBuffer first, then parse
-    // This avoids streaming issues with busboy/formData in Next.js
-    const body = await request.arrayBuffer();
-    const contentType = request.headers.get("content-type") || "";
+    const formData = await request.formData();
+    const file = formData.get("file") as File | null;
+    const folderId = (formData.get("folderId") as string) || null;
 
-    if (!contentType.includes("multipart/form-data")) {
-      return NextResponse.json({ error: "Expected multipart/form-data" }, { status: 400 });
-    }
-
-    // Parse multipart manually from the buffer
-    const boundary = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/);
-    if (!boundary) {
-      return NextResponse.json({ error: "No boundary found" }, { status: 400 });
-    }
-    const boundaryStr = `--${boundary[1] || boundary[2]}`;
-
-    // Convert to string for parsing headers, keep as buffer for file data
-    const bodyStr = Buffer.from(body).toString("latin1");
-    const parts = bodyStr.split(boundaryStr).filter((p) => p.trim() && p !== "--" && p !== "--\r\n");
-
-    let fileName = "";
-    let fileType = "";
-    let fileBuffer: Buffer | null = null;
-    let folderId: string | null = null;
-
-    for (const part of parts) {
-      // Remove leading \r\n
-      const trimmed = part.replace(/^\r\n/, "");
-
-      // Find header/body separator
-      const headerEnd = trimmed.indexOf("\r\n\r\n");
-      if (headerEnd === -1) continue;
-
-      const headers = trimmed.substring(0, headerEnd);
-      const bodyContent = trimmed.substring(headerEnd + 4);
-
-      // Extract Content-Disposition
-      const nameMatch = headers.match(/name="([^"]+)"/);
-      if (!nameMatch) continue;
-      const fieldName = nameMatch[1];
-
-      if (fieldName === "file") {
-        const filenameMatch = headers.match(/filename="([^"]+)"/);
-        fileName = filenameMatch ? filenameMatch[1] : "unnamed";
-
-        // Extract content type from header
-        const ctMatch = headers.match(/Content-Type:\s*([^\r\n]+)/i);
-        fileType = ctMatch ? ctMatch[1].trim() : "";
-
-        // Body content ends with \r\n before next boundary
-        const fileBody = bodyContent.replace(/\r\n$/, "");
-        // Convert back to Buffer (latin1 preserves binary data)
-        fileBuffer = Buffer.from(fileBody, "latin1");
-      } else if (fieldName === "folderId") {
-        // Trim ALL whitespace (including \r\n, spaces) from folderId
-        folderId = bodyContent.trim() || null;
-        console.log("[upload-direct] Parsed folderId:", JSON.stringify(folderId));
-      }
-    }
-
-    console.log("[upload-direct] Final folderId:", JSON.stringify(folderId), "fileName:", fileName);
-
-    if (!fileBuffer || !fileName) {
+    if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    const fileSize = fileBuffer.length;
-    fileType = getMimeType(fileName, fileType);
+    const fileName = file.name;
+    let fileType = file.type || "";
+
+    // Fallback: detect mime type from extension if browser doesn't provide it
+    if (!fileType) {
+      fileType = getMimeType(fileName, "");
+    }
+
+    const fileSize = file.size;
 
     // Validate file type
     if (!isFileTypeAllowed(fileType)) {
@@ -140,6 +90,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Folder not found" }, { status: 404 });
       }
     }
+
+    // Read file as ArrayBuffer — this preserves binary data correctly
+    const arrayBuffer = await file.arrayBuffer();
+    const fileBuffer = Buffer.from(arrayBuffer);
 
     // Generate S3 key
     const s3Key = generateS3Key(fileName, folderId || undefined);
