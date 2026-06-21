@@ -29,8 +29,9 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
       try {
         const JSZip = (await import("jszip")).default;
         const res = await fetch(`/api/files/${fileId}/proxy`);
-        if (!res.ok) throw new Error("Failed to fetch");
+        if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
         const arrayBuffer = await res.arrayBuffer();
+        if (arrayBuffer.byteLength === 0) throw new Error("Empty response");
         const zip = await JSZip.loadAsync(arrayBuffer);
 
         if (cancelled) return;

@@ -3,14 +3,13 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { s3Client } from "@/lib/s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-import { Readable } from "stream";
 
 export const runtime = "nodejs";
 
 /**
  * GET /api/files/[id]/proxy
  * Streams file content from S3 through our server (bypasses CORS).
- * Used by pdf.js to load PDFs for thumbnail rendering.
+ * Used by pdf.js, SheetJS, mammoth.js, JSZip for preview rendering.
  */
 export async function GET(
   _request: NextRequest,
@@ -51,7 +50,7 @@ export async function GET(
       );
     }
 
-    const body = response.Body as Readable;
+    const body = response.Body as import("stream").Readable;
     if (!body) {
       return NextResponse.json(
         { error: "Empty response from storage" },
@@ -59,15 +58,7 @@ export async function GET(
       );
     }
 
-    // Stream the file content back to the client
-    const headers = new Headers();
-    headers.set("Content-Type", file.mimeType);
-    headers.set("Cache-Control", "public, max-age=3600");
-    if (response.ContentLength) {
-      headers.set("Content-Length", response.ContentLength.toString());
-    }
-
-    // Convert stream to buffer
+    // Convert stream to buffer — preserve binary data exactly
     const chunks: Buffer[] = [];
     for await (const chunk of body) {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -81,7 +72,15 @@ export async function GET(
       );
     }
 
-    return new NextResponse(buffer, { headers });
+    // Set headers — binary safe
+    const headers = new Headers();
+    headers.set("Content-Type", file.mimeType);
+    headers.set("Content-Length", buffer.length.toString());
+    headers.set("Cache-Control", "public, max-age=3600");
+    headers.set("Accept-Ranges", "bytes");
+
+    // Return as Uint8Array to ensure binary-safe response
+    return new NextResponse(new Uint8Array(buffer), { headers });
   } catch (error) {
     console.error("Proxy error:", error);
     const message = error instanceof Error ? error.message : "Internal server error";

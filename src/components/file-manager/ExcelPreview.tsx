@@ -29,9 +29,10 @@ export default function ExcelPreview({ fileId }: ExcelPreviewProps) {
       try {
         const XLSX = await import("xlsx");
         const res = await fetch(`/api/files/${fileId}/proxy`);
-        if (!res.ok) throw new Error("Failed to fetch");
-        const buffer = await res.arrayBuffer();
-        const workbook = XLSX.read(buffer, { type: "array" });
+        if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+        const arrayBuffer = await res.arrayBuffer();
+        if (arrayBuffer.byteLength === 0) throw new Error("Empty response");
+        const workbook = XLSX.read(arrayBuffer, { type: "array" });
 
         if (cancelled) return;
 

@@ -21,7 +21,8 @@ export default function DocxPreview({ fileId }: DocxPreviewProps) {
 
     async function parseDocx() {
       try {
-        const mammoth = await import("mammoth");
+        // Use browser build — regular mammoth import breaks in Next.js bundler
+        const mammoth = await import("mammoth/mammoth.browser");
         const res = await fetch(`/api/files/${fileId}/proxy`);
         if (!res.ok) throw new Error("Failed to fetch");
         const arrayBuffer = await res.arrayBuffer();
