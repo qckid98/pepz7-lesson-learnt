@@ -99,14 +99,28 @@ export function formatFileSize(bytes: number | bigint): string {
 /**
  * Get file category from mime type
  */
-export function getFileCategory(mimeType: string): string {
-  if (mimeType.startsWith("image/")) return "image";
-  if (mimeType.startsWith("video/")) return "video";
-  if (mimeType.startsWith("audio/")) return "audio";
-  if (mimeType === "application/pdf") return "pdf";
-  if (mimeType.includes("word") || mimeType.includes("document")) return "document";
-  if (mimeType.includes("sheet") || mimeType.includes("excel")) return "spreadsheet";
-  if (mimeType.includes("presentation") || mimeType.includes("powerpoint")) return "presentation";
-  if (mimeType.startsWith("text/")) return "text";
+export function getFileCategory(mimeType: string, extension?: string): string {
+  const ext = (extension || "").toLowerCase();
+  const mt = (mimeType || "").toLowerCase();
+
+  // Check by extension first (more reliable than mime type from browser)
+  if (["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"].includes(ext)) return "image";
+  if (["mp4", "webm", "mov", "avi", "mkv"].includes(ext)) return "video";
+  if (["mp3", "wav", "ogg", "flac", "aac"].includes(ext)) return "audio";
+  if (ext === "pdf") return "pdf";
+  if (["xls", "xlsx", "csv"].includes(ext)) return "spreadsheet";
+  if (["doc", "docx"].includes(ext)) return "document";
+  if (["ppt", "pptx"].includes(ext)) return "presentation";
+  if (["txt", "md", "log"].includes(ext)) return "text";
+
+  // Fallback to mime type
+  if (mt.startsWith("image/")) return "image";
+  if (mt.startsWith("video/")) return "video";
+  if (mt.startsWith("audio/")) return "audio";
+  if (mt === "application/pdf") return "pdf";
+  if (mt.includes("sheet") || mt.includes("excel") || mt.includes("spreadsheet")) return "spreadsheet";
+  if (mt.includes("presentation") || mt.includes("powerpoint")) return "presentation";
+  if (mt.includes("word") || mt.includes("wordprocessing")) return "document";
+  if (mt.startsWith("text/")) return "text";
   return "other";
 }

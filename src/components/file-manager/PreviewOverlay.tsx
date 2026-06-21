@@ -104,7 +104,7 @@ export default function PreviewOverlay({
 
   if (!file) return null;
 
-  const category = getFileCategory(file.mimeType);
+  const category = getFileCategory(file.mimeType, file.extension);
   const fileSizeNum = Number(file.size);
   const isLargeFile = fileSizeNum > 20 * 1024 * 1024; // > 20MB
   const isVeryLargeFile = fileSizeNum > 50 * 1024 * 1024; // > 50MB
