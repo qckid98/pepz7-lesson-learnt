@@ -412,19 +412,51 @@ export default function FileManager() {
 
         {/* Bulk action bar */}
         {selectedCount > 0 && (
-          <div className="px-6 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-3 text-sm">
+          <div className="px-3 sm:px-6 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-3 text-sm">
             <span className="font-medium text-blue-700">{selectedCount} dipilih</span>
             {store.viewMode !== "trash" && (
               <>
-                <button onClick={() => handleTrash(Array.from(store.selectedIds).filter(id => store.files.some(f => f.id === id)), Array.from(store.selectedIds).filter(id => store.folders.some(f => f.id === id)))} className="text-red-600 hover:underline">Hapus</button>
+                <button
+                  onClick={() => handleTrash(
+                    Array.from(store.selectedIds).filter(id => store.files.some(f => f.id === id)),
+                    Array.from(store.selectedIds).filter(id => store.folders.some(f => f.id === id))
+                  )}
+                  className="text-red-600 hover:underline"
+                >
+                  Hapus
+                </button>
                 <button onClick={store.clearSelection} className="text-gray-500 hover:underline">Batal</button>
               </>
             )}
             {store.viewMode === "trash" && (
               <>
-                {Array.from(store.selectedIds).map(id => (
-                  <button key={id} onClick={() => handleRestore(id)} className="text-green-600 hover:underline">Restore {id.slice(-4)}</button>
-                ))}
+                <button
+                  onClick={async () => {
+                    const allIds = Array.from(store.selectedIds);
+                    for (const id of allIds) {
+                      await fetch(`/api/trash/${id}/restore`, { method: "POST" });
+                    }
+                    store.clearSelection();
+                    fetchData();
+                  }}
+                  className="text-green-600 hover:underline"
+                >
+                  Restore Semua
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Hapus permanen ${selectedCount} item? Tidak bisa dikembalikan.`)) return;
+                    const allIds = Array.from(store.selectedIds);
+                    for (const id of allIds) {
+                      await fetch(`/api/trash/${id}`, { method: "DELETE" });
+                    }
+                    store.clearSelection();
+                    fetchData();
+                  }}
+                  className="text-red-600 hover:underline"
+                >
+                  Hapus Permanen
+                </button>
                 <button onClick={store.clearSelection} className="text-gray-500 hover:underline">Batal</button>
               </>
             )}
