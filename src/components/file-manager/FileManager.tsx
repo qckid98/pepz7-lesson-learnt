@@ -408,7 +408,7 @@ export default function FileManager() {
       // Folders always first
       if (a._isFolder !== b._isFolder) return a._isFolder ? -1 : 1;
       let cmp = 0;
-      if (store.sortBy === "name") cmp = a.name.localeCompare(b.name);
+      if (store.sortBy === "name") cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
       else if (store.sortBy === "modified") cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
       else if (store.sortBy === "size") {
         const sa = "_isFolder" in a && !a._isFolder ? Number((a as FileItem).size) : 0;
