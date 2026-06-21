@@ -14,9 +14,7 @@ import {
   MaximizeIcon,
 } from "lucide-react";
 import { formatFileSize, getFileCategory } from "@/lib/validators";
-import ExcelPreview from "@/components/file-manager/ExcelPreview";
-import DocxPreview from "@/components/file-manager/DocxPreview";
-import PptxPreview from "@/components/file-manager/PptxPreview";
+import OfficePreview from "@/components/file-manager/OfficePreview";
 
 interface PreviewFile {
   id: string;
@@ -359,11 +357,11 @@ export default function PreviewOverlay({
             title={file.name}
           />
         ) : category === "spreadsheet" ? (
-          <ExcelPreview fileId={file.id} />
+          <OfficePreview fileId={file.id} type="xlsx" />
         ) : category === "document" ? (
-          <DocxPreview fileId={file.id} />
+          <OfficePreview fileId={file.id} type="docx" />
         ) : category === "presentation" ? (
-          <PptxPreview fileId={file.id} />
+          <OfficePreview fileId={file.id} type="pptx" />
         ) : previewUrl && category === "text" ? (
           <iframe
             src={previewUrl}
