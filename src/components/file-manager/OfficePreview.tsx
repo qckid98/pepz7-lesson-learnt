@@ -2,9 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { FileTypeIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { XlsxViewer } from "@silurus/ooxml/xlsx";
-import { DocxViewer } from "@silurus/ooxml/docx";
-import { PptxViewer } from "@silurus/ooxml/pptx";
 
 interface OfficePreviewProps {
   fileId: string;
@@ -13,8 +10,7 @@ interface OfficePreviewProps {
 
 export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const viewerRef = useRef<XlsxViewer | DocxViewer | PptxViewer | null>(null);
+  const viewerRef = useRef<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -26,32 +22,36 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
 
     async function loadOffice() {
       try {
-        if (!containerRef.current || !canvasRef.current) return;
+        if (!containerRef.current) {
+          console.log("[OfficePreview] No container ref");
+          return;
+        }
 
+        console.log("[OfficePreview] Fetching proxy for", fileId);
         const res = await fetch(`/api/files/${fileId}/proxy`);
         if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
         const arrayBuffer = await res.arrayBuffer();
         if (arrayBuffer.byteLength === 0) throw new Error("Empty response");
 
+        console.log("[OfficePreview] Proxy fetched, size:", arrayBuffer.byteLength);
+
         if (cancelled) return;
+
+        // Dynamic import — avoids static import resolution issues
+        console.log("[OfficePreview] Importing @silurus/ooxml...");
+        const mod = await import("@silurus/ooxml");
+        console.log("[OfficePreview] Module loaded, keys:", Object.keys(mod));
 
         // Clean up previous viewer
         if (viewerRef.current) {
-          try {
-            (viewerRef.current as { destroy?: () => void }).destroy?.();
-          } catch { /* ignore */ }
+          try { viewerRef.current.destroy?.(); } catch { /* ignore */ }
           viewerRef.current = null;
         }
-
-        // Clear container
         containerRef.current.innerHTML = "";
-        const canvas = document.createElement("canvas");
-        canvas.style.width = "100%";
-        canvas.style.height = "100%";
-        containerRef.current.appendChild(canvas);
 
         const opts = {
           onError: (err: Error) => {
+            console.error("[OfficePreview] Viewer error:", err);
             if (!cancelled) {
               setError(true);
               setErrorMsg(err.message);
@@ -60,39 +60,53 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
           },
         };
 
-        let viewer: XlsxViewer | DocxViewer | PptxViewer;
-
         if (type === "xlsx") {
-          // XlsxViewer manages its own canvas + tab bar
-          // It needs a container div, not a canvas
-          containerRef.current.innerHTML = "";
-          viewer = new XlsxViewer(containerRef.current, opts);
-          await (viewer as XlsxViewer).load(arrayBuffer);
+          console.log("[OfficePreview] Creating XlsxViewer...");
+          const XlsxViewer = (mod as any).xlsx?.XlsxViewer;
+          if (!XlsxViewer) throw new Error("XlsxViewer not found in module");
+          const viewer = new XlsxViewer(containerRef.current, opts);
+          await viewer.load(arrayBuffer);
+          viewerRef.current = viewer;
           if (!cancelled) {
-            setTotalCount((viewer as XlsxViewer).sheetCount);
-            setCurrentIdx((viewer as XlsxViewer).sheetIndex);
+            setTotalCount(viewer.sheetCount || 0);
+            setCurrentIdx(viewer.sheetIndex || 0);
           }
         } else if (type === "docx") {
-          viewer = new DocxViewer(canvas, opts);
-          await (viewer as DocxViewer).load(arrayBuffer);
+          console.log("[OfficePreview] Creating DocxViewer...");
+          const DocxViewer = (mod as any).docx?.DocxViewer;
+          if (!DocxViewer) throw new Error("DocxViewer not found in module");
+          const canvas = document.createElement("canvas");
+          canvas.style.width = "100%";
+          canvas.style.height = "100%";
+          containerRef.current.appendChild(canvas);
+          const viewer = new DocxViewer(canvas, opts);
+          await viewer.load(arrayBuffer);
+          viewerRef.current = viewer;
           if (!cancelled) {
-            setTotalCount((viewer as DocxViewer).pageCount);
-            setCurrentIdx((viewer as DocxViewer).currentPage);
+            setTotalCount(viewer.pageCount || 0);
+            setCurrentIdx(viewer.currentPage || 0);
           }
         } else {
-          viewer = new PptxViewer(canvas, opts);
-          await (viewer as PptxViewer).load(arrayBuffer);
+          console.log("[OfficePreview] Creating PptxViewer...");
+          const PptxViewer = (mod as any).pptx?.PptxViewer;
+          if (!PptxViewer) throw new Error("PptxViewer not found in module");
+          const canvas = document.createElement("canvas");
+          canvas.style.width = "100%";
+          canvas.style.height = "100%";
+          containerRef.current.appendChild(canvas);
+          const viewer = new PptxViewer(canvas, opts);
+          await viewer.load(arrayBuffer);
+          viewerRef.current = viewer;
           if (!cancelled) {
-            setTotalCount((viewer as PptxViewer).slideCount);
-            setCurrentIdx((viewer as PptxViewer).slideIndex);
+            setTotalCount(viewer.slideCount || 0);
+            setCurrentIdx(viewer.slideIndex || 0);
           }
         }
 
-        viewerRef.current = viewer;
-
+        console.log("[OfficePreview] Done loading");
         if (!cancelled) setLoading(false);
       } catch (e) {
-        console.error("Office preview error:", e);
+        console.error("[OfficePreview] Error:", e);
         if (!cancelled) {
           setError(true);
           setErrorMsg(e instanceof Error ? e.message : "Unknown error");
@@ -105,9 +119,7 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
     return () => {
       cancelled = true;
       if (viewerRef.current) {
-        try {
-          (viewerRef.current as { destroy?: () => void }).destroy?.();
-        } catch { /* ignore */ }
+        try { viewerRef.current.destroy?.(); } catch { /* ignore */ }
         viewerRef.current = null;
       }
     };
@@ -117,9 +129,9 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
     const v = viewerRef.current;
     if (!v) return;
     try {
-      if (type === "xlsx") await (v as XlsxViewer).prevSheet();
-      else if (type === "docx") await (v as DocxViewer).prevPage();
-      else await (v as PptxViewer).prevSlide();
+      if (type === "xlsx") await v.prevSheet();
+      else if (type === "docx") await v.prevPage();
+      else await v.prevSlide();
       updateIdx();
     } catch { /* ignore */ }
   };
@@ -128,9 +140,9 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
     const v = viewerRef.current;
     if (!v) return;
     try {
-      if (type === "xlsx") await (v as XlsxViewer).nextSheet();
-      else if (type === "docx") await (v as DocxViewer).nextPage();
-      else await (v as PptxViewer).nextSlide();
+      if (type === "xlsx") await v.nextSheet();
+      else if (type === "docx") await v.nextPage();
+      else await v.nextSlide();
       updateIdx();
     } catch { /* ignore */ }
   };
@@ -139,14 +151,14 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
     const v = viewerRef.current;
     if (!v) return;
     if (type === "xlsx") {
-      setCurrentIdx((v as XlsxViewer).sheetIndex);
-      setTotalCount((v as XlsxViewer).sheetCount);
+      setCurrentIdx(v.sheetIndex || 0);
+      setTotalCount(v.sheetCount || 0);
     } else if (type === "docx") {
-      setCurrentIdx((v as DocxViewer).currentPage);
-      setTotalCount((v as DocxViewer).pageCount);
+      setCurrentIdx(v.currentPage || 0);
+      setTotalCount(v.pageCount || 0);
     } else {
-      setCurrentIdx((v as PptxViewer).slideIndex);
-      setTotalCount((v as PptxViewer).slideCount);
+      setCurrentIdx(v.slideIndex || 0);
+      setTotalCount(v.slideCount || 0);
     }
   };
 
@@ -155,12 +167,15 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center">
-          <div className={`w-8 h-8 border-2 border-gray-600 border-t-current rounded-full animate-spin mb-3 ${accentColor}`} />
-          <p className="text-gray-400 text-sm">
-            Memuat {type === "xlsx" ? "spreadsheet" : type === "docx" ? "dokumen" : "presentasi"}...
-          </p>
+      <div className="w-full h-full flex flex-col bg-white rounded-lg overflow-hidden relative">
+        <div ref={containerRef} className="flex-1 overflow-hidden" style={{ display: 'none' }} />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <div className={`w-8 h-8 border-2 border-gray-600 border-t-current rounded-full animate-spin mb-3 ${accentColor}`} />
+            <p className="text-gray-400 text-sm">
+              Memuat {type === "xlsx" ? "spreadsheet" : type === "docx" ? "dokumen" : "presentasi"}...
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -182,10 +197,7 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
 
   return (
     <div className="w-full h-full flex flex-col bg-white rounded-lg overflow-hidden">
-      {/* Canvas container */}
       <div className="flex-1 overflow-hidden relative" ref={containerRef} />
-
-      {/* Navigation bar */}
       {totalCount > 1 && (
         <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 bg-gray-50 border-t border-gray-200 flex-shrink-0">
           <button
@@ -196,11 +208,9 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
             <ChevronLeftIcon className="w-4 h-4" />
             <span className="hidden sm:inline">Sebelumnya</span>
           </button>
-
           <span className="text-xs sm:text-sm text-gray-400">
             {label} {currentIdx + 1} / {totalCount}
           </span>
-
           <button
             onClick={goNext}
             disabled={currentIdx >= totalCount - 1}
