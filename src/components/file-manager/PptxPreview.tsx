@@ -21,6 +21,7 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -160,6 +161,7 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
         console.error("PPTX parse error:", e);
         if (!cancelled) {
           setError(true);
+          setErrorMsg(e instanceof Error ? e.message : "Unknown error");
           setLoading(false);
         }
       }
@@ -192,6 +194,7 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
         <div className="flex flex-col items-center">
           <FileTypeIcon className="w-12 h-12 text-orange-500 mb-2" />
           <p className="text-gray-400 text-sm">Gagal memuat presentasi</p>
+          <p className="text-gray-600 text-xs mt-1">{errorMsg}</p>
         </div>
       </div>
     );

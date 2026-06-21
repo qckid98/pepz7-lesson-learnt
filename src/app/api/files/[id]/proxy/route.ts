@@ -79,8 +79,14 @@ export async function GET(
     headers.set("Cache-Control", "public, max-age=3600");
     headers.set("Accept-Ranges", "bytes");
 
-    // Return as Uint8Array to ensure binary-safe response
-    return new NextResponse(new Uint8Array(buffer), { headers });
+    // Use buffer.buffer.slice() to get a fresh ArrayBuffer copy
+    // This avoids "detached ArrayBuffer" errors in Next.js response
+    const arrayBuffer = buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength
+    );
+
+    return new NextResponse(arrayBuffer, { headers });
   } catch (error) {
     console.error("Proxy error:", error);
     const message = error instanceof Error ? error.message : "Internal server error";

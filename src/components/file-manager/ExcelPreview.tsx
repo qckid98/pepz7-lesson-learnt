@@ -21,6 +21,7 @@ export default function ExcelPreview({ fileId }: ExcelPreviewProps) {
   const [activeSheet, setActiveSheet] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -50,6 +51,7 @@ export default function ExcelPreview({ fileId }: ExcelPreviewProps) {
         console.error("Excel parse error:", e);
         if (!cancelled) {
           setError(true);
+          setErrorMsg(e instanceof Error ? e.message : "Unknown error");
           setLoading(false);
         }
       }
@@ -76,6 +78,7 @@ export default function ExcelPreview({ fileId }: ExcelPreviewProps) {
         <div className="flex flex-col items-center">
           <FileTypeIcon className="w-12 h-12 text-green-500 mb-2" />
           <p className="text-gray-400 text-sm">Gagal memuat spreadsheet</p>
+          <p className="text-gray-600 text-xs mt-1">{errorMsg}</p>
         </div>
       </div>
     );

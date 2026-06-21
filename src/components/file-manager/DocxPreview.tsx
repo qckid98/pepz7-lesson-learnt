@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { FileTypeIcon } from "lucide-react";
+// Static import — dynamic import breaks in Next.js production build
+import mammoth from "mammoth/mammoth.browser";
 
 interface DocxPreviewProps {
   fileId: string;
@@ -15,29 +17,20 @@ export default function DocxPreview({ fileId }: DocxPreviewProps) {
   const [html, setHtml] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     let cancelled = false;
 
     async function parseDocx() {
       try {
-        // Use browser build — regular mammoth import breaks in Next.js bundler
-        const mammoth = await import("mammoth/mammoth.browser");
         const res = await fetch(`/api/files/${fileId}/proxy`);
-        if (!res.ok) throw new Error("Failed to fetch");
+        if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
         const arrayBuffer = await res.arrayBuffer();
+        if (arrayBuffer.byteLength === 0) throw new Error("Empty response");
 
-        const result = await mammoth.convertToHtml(
-          { arrayBuffer },
-          {
-            styleMap: [
-              "p[style-name='Title'] => h1.doc-title:fresh",
-              "p[style-name='Heading 1'] => h1:fresh",
-              "p[style-name='Heading 2'] => h2:fresh",
-              "p[style-name='Heading 3'] => h3:fresh",
-            ],
-          }
-        );
+        // mammoth.browser expects { arrayBuffer: ArrayBuffer }
+        const result = await mammoth.convertToHtml({ arrayBuffer });
 
         if (!cancelled) {
           setHtml(result.value || "<p>Dokumen kosong</p>");
@@ -47,6 +40,7 @@ export default function DocxPreview({ fileId }: DocxPreviewProps) {
         console.error("DOCX parse error:", e);
         if (!cancelled) {
           setError(true);
+          setErrorMsg(e instanceof Error ? e.message : "Unknown error");
           setLoading(false);
         }
       }
@@ -70,9 +64,10 @@ export default function DocxPreview({ fileId }: DocxPreviewProps) {
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center max-w-md text-center">
           <FileTypeIcon className="w-12 h-12 text-blue-500 mb-2" />
-          <p className="text-gray-400 text-sm">Gagal memuat dokumen</p>
+          <p className="text-gray-400 text-sm mb-1">Gagal memuat dokumen</p>
+          <p className="text-gray-600 text-xs">{errorMsg}</p>
         </div>
       </div>
     );
