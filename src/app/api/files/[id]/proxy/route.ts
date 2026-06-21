@@ -77,7 +77,8 @@ export async function GET(
     headers.set("Content-Type", file.mimeType);
     headers.set("Content-Length", buffer.length.toString());
     headers.set("Cache-Control", "public, max-age=3600");
-    headers.set("Accept-Ranges", "bytes");
+    // Do NOT set Accept-Ranges — proxy doesn't support range requests
+    // pdf.js will try range request if this header is present, causing "Bad end offset" error
 
     // Use buffer.buffer.slice() to get a fresh ArrayBuffer copy
     // This avoids "detached ArrayBuffer" errors in Next.js response

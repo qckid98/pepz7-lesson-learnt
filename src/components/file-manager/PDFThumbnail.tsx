@@ -34,8 +34,12 @@ export default function PDFThumbnail({ fileId, size, className = "" }: PDFThumbn
         // Use our proxy endpoint to avoid CORS issues with S3
         const proxyUrl = `/api/files/${fileId}/proxy`;
 
-        // Load PDF document
-        const loadingTask = pdfjsLib.getDocument({ url: proxyUrl });
+        // Load PDF document — disable range requests (proxy doesn't support them)
+        const loadingTask = pdfjsLib.getDocument({
+          url: proxyUrl,
+          disableRange: true,
+          disableStream: true,
+        });
         const pdf = await loadingTask.promise;
 
         if (cancelled) return;
