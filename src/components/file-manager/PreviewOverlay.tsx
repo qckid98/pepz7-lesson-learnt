@@ -56,6 +56,15 @@ export default function PreviewOverlay({
 
   const fetchPreviewUrl = useCallback(async () => {
     if (!file) return;
+    
+    // Skip preview for very large files (>50MB) — too slow to load
+    const sizeNum = Number(file.size);
+    if (sizeNum > 50 * 1024 * 1024) {
+      setError(true);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(false);
     setPreviewUrl(null);
@@ -96,6 +105,9 @@ export default function PreviewOverlay({
   if (!file) return null;
 
   const category = getFileCategory(file.mimeType);
+  const fileSizeNum = Number(file.size);
+  const isLargeFile = fileSizeNum > 20 * 1024 * 1024; // > 20MB
+  const isVeryLargeFile = fileSizeNum > 50 * 1024 * 1024; // > 50MB
 
   // Image pan handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -245,16 +257,30 @@ export default function PreviewOverlay({
         {loading ? (
           <div className="text-gray-400 flex flex-col items-center">
             <div className="w-10 h-10 border-3 border-gray-600 border-t-blue-500 rounded-full animate-spin mb-3" />
-            <p className="text-sm">Memuat preview...</p>
+            <p className="text-sm">Memuat preview... {isLargeFile && `(${formatFileSize(BigInt(file.size))})`}</p>
+            {isLargeFile && <p className="text-xs text-gray-500 mt-1">File besar, mungkin butuh beberapa saat</p>}
           </div>
         ) : error ? (
-          <div className="text-gray-400 flex flex-col items-center">
+          <div className="text-gray-400 flex flex-col items-center max-w-md text-center">
             <FileIcon className="w-16 h-16 text-gray-600 mb-3" />
-            <p className="text-sm">Gagal memuat preview</p>
+            {isVeryLargeFile ? (
+              <>
+                <p className="text-white font-medium text-lg mb-1">{file.name}</p>
+                <p className="text-gray-500 text-sm mb-1">
+                  File terlalu besar untuk preview ({formatFileSize(BigInt(file.size))})
+                </p>
+                <p className="text-gray-600 text-xs mb-4">
+                  File lebih dari 50MB tidak bisa di-preview secara langsung. Silakan download untuk membuka.
+                </p>
+              </>
+            ) : (
+              <p className="text-sm">Gagal memuat preview</p>
+            )}
             <a
               href={`/api/files/${file.id}/download`}
-              className="mt-3 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
+              className="flex items-center gap-2 mt-2 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
             >
+              <DownloadIcon className="w-5 h-5" />
               Download File
             </a>
           </div>
