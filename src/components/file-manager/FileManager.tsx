@@ -71,6 +71,7 @@ export default function FileManager() {
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [uploadInputRef, setUploadInputRef] = useState<HTMLInputElement | null>(null);
+  const [folderUploadInputRef, setFolderUploadInputRef] = useState<HTMLInputElement | null>(null);
   const [isDragOverPage, setIsDragOverPage] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -232,6 +233,105 @@ export default function FileManager() {
     }, 3000);
   };
 
+  // ===== Upload folder (drag & drop or picker) =====
+  const handleFolderUpload = async (files: FileList) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
+    // Extract folder structure from webkitRelativePath
+    const folderCache = new Map<string, string>();
+    folderCache.set("", store.currentFolderId || "");
+
+    async function getOrCreateFolder(path: string): Promise<string> {
+      if (folderCache.has(path)) return folderCache.get(path)!;
+
+      const parts = path.split("/").filter(Boolean);
+      let currentPath = "";
+      let parentId = store.currentFolderId || "";
+
+      for (const part of parts) {
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+        if (folderCache.has(currentPath)) {
+          parentId = folderCache.get(currentPath)!;
+          continue;
+        }
+
+        try {
+          const res = await fetch("/api/folders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: part, parentId: parentId || null, visibility: "PUBLIC" }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            folderCache.set(currentPath, data.id);
+            parentId = data.id;
+          }
+        } catch (e) {
+          console.error("Folder create error:", e);
+        }
+      }
+      return parentId;
+    }
+
+    const newUploads = fileArray.map((file, i) => ({
+      id: `${Date.now()}-f${i}`,
+      name: (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
+      size: file.size,
+      progress: 0,
+      status: "uploading" as const,
+    }));
+    setUploads((prev) => [...prev, ...newUploads]);
+
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      const uploadId = newUploads[i].id;
+      const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || "";
+
+      const dirPath = relativePath.includes("/") ? relativePath.substring(0, relativePath.lastIndexOf("/")) : "";
+      const targetFolderId = await getOrCreateFolder(dirPath);
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folderId", targetFolderId);
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/files/upload-direct");
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const progress = Math.round((event.loaded / event.total) * 100);
+              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress } : u));
+            }
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress: 100, status: "done" } : u));
+              resolve();
+            } else {
+              let errMsg = "Upload gagal";
+              try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch {}
+              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: errMsg } : u));
+              reject(new Error(errMsg));
+            }
+          };
+          xhr.onerror = () => {
+            setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: "Network error" } : u));
+            reject(new Error("Network error"));
+          };
+          xhr.send(formData);
+        });
+      } catch (e) {
+        console.error("Upload error:", e);
+      }
+    }
+    fetchData();
+    setTimeout(() => {
+      setUploads((prev) => prev.filter((u) => u.status === "uploading"));
+    }, 3000);
+  };
+
   const handleRename = async (id: string, type: "file" | "folder", newName: string) => {
     if (!newName.trim()) { store.setRenamingId(null); return; }
     try {
@@ -353,7 +453,25 @@ export default function FileManager() {
       onDrop={(e) => {
         e.preventDefault();
         setIsDragOverPage(false);
-        if (e.dataTransfer.files.length > 0) handleUpload(e.dataTransfer.files);
+        if (e.dataTransfer.files.length > 0) {
+          // Check if this is a folder drop (files have webkitRelativePath or items have directory)
+          const items = e.dataTransfer.items;
+          let isFolderDrop = false;
+          if (items && items.length > 0) {
+            for (let i = 0; i < items.length; i++) {
+              const entry = items[i].webkitGetAsEntry?.();
+              if (entry && entry.isDirectory) {
+                isFolderDrop = true;
+                break;
+              }
+            }
+          }
+          if (isFolderDrop) {
+            handleFolderUpload(e.dataTransfer.files);
+          } else {
+            handleUpload(e.dataTransfer.files);
+          }
+        }
       }}
     >
       {/* ===== SIDEBAR (drawer on mobile) ===== */}
@@ -368,6 +486,7 @@ export default function FileManager() {
         <Toolbar
           onNewFolder={() => setShowNewFolder(true)}
           onUploadClick={() => uploadInputRef?.click()}
+          onFolderUploadClick={() => folderUploadInputRef?.click()}
           onSort={store.setSort}
           sortBy={store.sortBy}
           sortDir={store.sortDir}
@@ -533,7 +652,7 @@ export default function FileManager() {
         </div>
       </div>
 
-      {/* Hidden upload input */}
+      {/* Hidden upload inputs */}
       <input
         ref={(el) => setUploadInputRef(el)}
         type="file"
@@ -541,13 +660,23 @@ export default function FileManager() {
         className="hidden"
         onChange={(e) => e.target.files && handleUpload(e.target.files)}
       />
+      <input
+        ref={(el) => setFolderUploadInputRef(el)}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) handleFolderUpload(e.target.files);
+          e.target.value = ""; // Reset so same folder can be selected again
+        }}
+      />
 
       {/* Drag overlay */}
       {isDragOverPage && (
         <div className="fixed inset-0 bg-blue-50/80 flex items-center justify-center z-50 pointer-events-none">
           <div className="bg-white rounded-2xl p-8 shadow-lg flex flex-col items-center">
             <UploadIcon className="w-12 h-12 text-blue-500 mb-2" />
-            <p className="text-lg font-medium text-gray-700">Drop file untuk upload</p>
+            <p className="text-lg font-medium text-gray-700">Drop file atau folder di sini</p>
             <p className="text-sm text-gray-500">ke {store.currentFolderId ? "folder ini" : "root"}</p>
           </div>
         </div>
@@ -761,6 +890,7 @@ function Sidebar({ onNavigate, onRefresh, open, onClose }: { onNavigate: (id: st
 function Toolbar(props: {
   onNewFolder: () => void;
   onUploadClick: () => void;
+  onFolderUploadClick?: () => void;
   onSort: (by: "name" | "modified" | "size" | "type", dir?: "asc" | "desc") => void;
   sortBy: string;
   sortDir: string;
@@ -781,6 +911,11 @@ function Toolbar(props: {
           <button onClick={props.onUploadClick} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-blue-600 text-white text-xs sm:text-sm rounded-lg hover:bg-blue-700 transition">
             <UploadIcon className="w-4 h-4" /> <span className="hidden sm:inline">Upload</span>
           </button>
+          {props.onFolderUploadClick && (
+            <button onClick={props.onFolderUploadClick} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg hover:bg-gray-50 transition">
+              <FolderIcon className="w-4 h-4" /> <span className="hidden sm:inline">Upload Folder</span>
+            </button>
+          )}
           <button onClick={props.onNewFolder} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg hover:bg-gray-50 transition">
             <PlusIcon className="w-4 h-4" /> <span className="hidden sm:inline">Folder Baru</span>
           </button>
