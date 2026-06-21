@@ -106,17 +106,48 @@ export default function PreviewOverlay({
   };
   const handleMouseUp = () => setIsPanning(false);
 
-  // Touch pan handlers for mobile
+  // Touch pan + pinch zoom handlers for mobile
+  const pinchStartDist = useRef(0);
+  const pinchStartZoom = useRef(1);
+
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (zoom <= 1 || e.touches.length !== 1) return;
-    setIsPanning(true);
-    panStart.current = { x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y };
+    if (e.touches.length === 1 && zoom > 1) {
+      // Single finger pan
+      setIsPanning(true);
+      panStart.current = { x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y };
+    } else if (e.touches.length === 2) {
+      // Pinch to zoom — calculate initial distance
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchStartDist.current = Math.sqrt(dx * dx + dy * dy);
+      pinchStartZoom.current = zoom;
+      setIsPanning(false);
+    }
   };
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isPanning || e.touches.length !== 1) return;
-    setPan({ x: e.touches[0].clientX - panStart.current.x, y: e.touches[0].clientY - panStart.current.y });
+    if (e.touches.length === 1 && isPanning) {
+      // Single finger pan
+      setPan({ x: e.touches[0].clientX - panStart.current.x, y: e.touches[0].clientY - panStart.current.y });
+    } else if (e.touches.length === 2 && pinchStartDist.current > 0) {
+      // Pinch to zoom
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const scale = dist / pinchStartDist.current;
+      const newZoom = Math.min(Math.max(pinchStartZoom.current * scale, 0.5), 6);
+      setZoom(newZoom);
+    }
   };
-  const handleTouchEnd = () => setIsPanning(false);
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (e.touches.length === 0) {
+      setIsPanning(false);
+      pinchStartDist.current = 0;
+    } else if (e.touches.length === 1 && zoom > 1) {
+      // Switch from pinch to pan
+      setIsPanning(true);
+      panStart.current = { x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y };
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 flex flex-col" onClick={onClose}>
@@ -241,7 +272,7 @@ export default function PreviewOverlay({
           </div>
         ) : previewUrl && category === "image" ? (
           <div
-            className="w-full h-full overflow-hidden flex items-center justify-center"
+            className="w-full h-full overflow-hidden flex items-center justify-center touch-none"
             style={{ cursor: zoom > 1 ? (isPanning ? "grabbing" : "grab") : "default" }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}

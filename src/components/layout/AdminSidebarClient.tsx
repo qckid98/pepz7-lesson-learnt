@@ -89,20 +89,6 @@ export default function AdminSidebarClient({ navItems, userName }: AdminSidebarC
             );
           })}
         </nav>
-
-        <div className="p-4 border-t border-gray-200 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-              <span className="text-sm font-medium text-blue-600">
-                {userName.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{userName}</p>
-              <p className="text-xs text-gray-500">Admin</p>
-            </div>
-          </div>
-        </div>
       </aside>
     </>
   );
