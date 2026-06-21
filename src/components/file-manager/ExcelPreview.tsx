@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { FileTypeIcon } from "lucide-react";
+// Static import — dynamic import breaks in Next.js production build
+import * as XLSX from "xlsx";
 
 interface ExcelPreviewProps {
   fileId: string;
@@ -28,7 +30,6 @@ export default function ExcelPreview({ fileId }: ExcelPreviewProps) {
 
     async function parseExcel() {
       try {
-        const XLSX = await import("xlsx");
         const res = await fetch(`/api/files/${fileId}/proxy`);
         if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
         const arrayBuffer = await res.arrayBuffer();
@@ -75,7 +76,7 @@ export default function ExcelPreview({ fileId }: ExcelPreviewProps) {
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center max-w-md text-center">
           <FileTypeIcon className="w-12 h-12 text-green-500 mb-2" />
           <p className="text-gray-400 text-sm">Gagal memuat spreadsheet</p>
           <p className="text-gray-600 text-xs mt-1">{errorMsg}</p>

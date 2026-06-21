@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { FileTypeIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+// Static import — dynamic import breaks in Next.js production build
+import JSZip from "jszip";
 
 interface PptxPreviewProps {
   fileId: string;
@@ -28,7 +30,6 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
 
     async function parsePptx() {
       try {
-        const JSZip = (await import("jszip")).default;
         const res = await fetch(`/api/files/${fileId}/proxy`);
         if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
         const arrayBuffer = await res.arrayBuffer();
