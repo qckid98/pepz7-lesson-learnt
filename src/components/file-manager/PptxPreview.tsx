@@ -1,74 +1,156 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { FileTypeIcon, ChevronLeftIcon, ChevronRightIcon, MaximizeIcon } from "lucide-react";
-import { PPTXViewer } from "pptx-viewer";
+import JSZip from "jszip";
 
 interface PptxPreviewProps {
   fileId: string;
 }
 
+interface SlideData {
+  html: string;
+}
+
 /**
- * PowerPoint (.pptx) preview using pptx-viewer library
- * Features: SVG rendering, shapes, text, images, tables, charts, slide navigation
- * Lightweight: only 8KB dependency (fflate for ZIP decompression)
+ * PowerPoint (.pptx) preview — parses slide text + images client-side
+ * Uses JSZip to extract OOXML structure
  */
 export default function PptxPreview({ fileId }: PptxPreviewProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const viewerRef = useRef<PPTXViewer | null>(null);
+  const [slides, setSlides] = useState<SlideData[]>([]);
+  const [currentSlide, setCurrentSlide] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [slideCount, setSlideCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadPptx() {
+    async function parsePptx() {
       try {
-        if (!containerRef.current) return;
-
-        // Fetch file via proxy
         const res = await fetch(`/api/files/${fileId}/proxy`);
         if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
         const arrayBuffer = await res.arrayBuffer();
         if (arrayBuffer.byteLength === 0) throw new Error("Empty response");
+        const zip = await JSZip.loadAsync(arrayBuffer);
 
         if (cancelled) return;
 
-        // Clean up previous viewer
-        if (viewerRef.current) {
-          viewerRef.current.destroy();
+        // Find all slide XML files
+        const slideFiles = Object.keys(zip.files)
+          .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+          .sort((a, b) => {
+            const numA = parseInt(a.match(/slide(\d+)\.xml/)?.[1] || "0");
+            const numB = parseInt(b.match(/slide(\d+)\.xml/)?.[1] || "0");
+            return numA - numB;
+          });
+
+        if (slideFiles.length === 0) {
+          if (!cancelled) {
+            setError(true);
+            setErrorMsg("No slides found in file");
+            setLoading(false);
+          }
+          return;
         }
 
-        // Create new viewer
-        const viewer = new PPTXViewer(containerRef.current, {
-          showControls: false,
-          keyboardNavigation: true,
-          onSlideChange: (index: number) => {
-            if (!cancelled) setCurrentSlide(index);
-          },
-          onLoad: () => {
-            if (!cancelled) {
-              setLoading(false);
-              setSlideCount(viewer.getSlideCount());
-            }
-          },
-          onError: (err: Error) => {
-            if (!cancelled) {
-              setError(true);
-              setErrorMsg(err.message);
-              setLoading(false);
-            }
-          },
-        });
+        // Extract images from ppt/media/
+        const mediaFiles: Record<string, string> = {};
+        const mediaEntries = Object.keys(zip.files).filter((name) =>
+          name.startsWith("ppt/media/")
+        );
+        for (const mediaName of mediaEntries) {
+          const blob = await zip.files[mediaName].async("blob");
+          const ext = mediaName.split(".").pop()?.toLowerCase() || "";
+          const mime =
+            ext === "png" ? "image/png" :
+            ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
+            ext === "gif" ? "image/gif" :
+            ext === "bmp" ? "image/bmp" :
+            ext === "svg" ? "image/svg+xml" : "image/png";
+          const url = URL.createObjectURL(new Blob([blob], { type: mime }));
+          mediaFiles[mediaName.split("/").pop()!] = url;
+        }
 
-        viewerRef.current = viewer;
-        await viewer.load(arrayBuffer);
+        // Parse each slide
+        const slideData: SlideData[] = [];
+        for (const slideFile of slideFiles) {
+          const xml = await zip.files[slideFile].async("text");
+
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(xml, "text/xml");
+
+          // Collect text elements
+          const textElements: { text: string; level: number; bold: boolean }[] = [];
+          const spElements = doc.getElementsByTagName("a:p");
+          for (let i = 0; i < spElements.length; i++) {
+            const p = spElements[i];
+            const runs = p.getElementsByTagName("a:r");
+            let slideText = "";
+            let isBold = false;
+            for (let j = 0; j < runs.length; j++) {
+              const t = runs[j].getElementsByTagName("a:t")[0];
+              const rPr = runs[j].getElementsByTagName("a:rPr")[0];
+              if (rPr) {
+                const b = rPr.getAttribute("b");
+                if (b === "1") isBold = true;
+              }
+              if (t) slideText += t.textContent || "";
+            }
+            const pPr = p.getElementsByTagName("a:pPr")[0];
+            const lvl = pPr ? parseInt(pPr.getAttribute("lvl") || "0") : 0;
+            if (slideText.trim()) {
+              textElements.push({ text: slideText.trim(), level: lvl, bold: isBold });
+            }
+          }
+
+          // Collect images
+          const imageElements = doc.getElementsByTagName("a:blip");
+          const images: string[] = [];
+          for (let i = 0; i < imageElements.length; i++) {
+            const embed = imageElements[i].getAttribute("r:embed");
+            if (embed) {
+              const relsXml = await zip.files[`ppt/slides/_rels/${slideFile.split("/").pop()}.rels`]?.async("text");
+              if (relsXml) {
+                const relsDoc = parser.parseFromString(relsXml, "text/xml");
+                const rels = relsDoc.getElementsByTagName("Relationship");
+                for (let r = 0; r < rels.length; r++) {
+                  if (rels[r].getAttribute("Id") === embed) {
+                    const target = rels[r].getAttribute("Target");
+                    if (target) {
+                      const imageName = target.split("/").pop();
+                      if (imageName && mediaFiles[imageName]) {
+                        images.push(mediaFiles[imageName]);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          // Build HTML
+          let html = "";
+          if (images.length > 0) {
+            html += images.map((url) =>
+              `<div style="text-align:center;margin-bottom:16px;"><img src="${url}" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:8px;" /></div>`
+            ).join("");
+          }
+          if (textElements.length > 0) {
+            html += textElements.map((t) => {
+              const tag = t.level === 0 ? "p" : t.level === 1 ? "h3" : "h4";
+              const style = `margin:8px 0;padding-left:${t.level * 20}px;${t.bold ? "font-weight:bold;" : ""}`;
+              return `<${tag} style="${style}">${escapeHtml(t.text)}</${tag}>`;
+            }).join("");
+          }
+          if (!html) html = '<p style="color:#9ca3af;text-align:center;">Slide kosong</p>';
+
+          slideData.push({ html });
+        }
 
         if (!cancelled) {
-          setSlideCount(viewer.getSlideCount());
+          setSlides(slideData);
+          setLoading(false);
         }
       } catch (e) {
         console.error("PPTX parse error:", e);
@@ -80,29 +162,15 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
       }
     }
 
-    loadPptx();
-    return () => {
-      cancelled = true;
-      if (viewerRef.current) {
-        viewerRef.current.destroy();
-        viewerRef.current = null;
-      }
-    };
+    parsePptx();
+    return () => { cancelled = true; };
   }, [fileId]);
 
-  const goPrev = () => {
-    const idx = viewerRef.current?.previous() ?? -1;
-    if (idx >= 0) setCurrentSlide(idx);
-  };
-
-  const goNext = () => {
-    const idx = viewerRef.current?.next() ?? -1;
-    if (idx >= 0) setCurrentSlide(idx);
-  };
-
-  const goFullscreen = () => {
-    viewerRef.current?.enterFullscreen();
-  };
+  function escapeHtml(text: string): string {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
 
   if (loading) {
     return (
@@ -127,17 +195,33 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
     );
   }
 
+  if (slides.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-gray-400 text-sm">File kosong</p>
+      </div>
+    );
+  }
+
+  const current = slides[currentSlide];
+
   return (
     <div className="w-full h-full flex flex-col bg-gray-800 rounded-lg overflow-hidden">
       {/* Slide content */}
-      <div className="flex-1 overflow-hidden relative">
-        <div ref={containerRef} className="w-full h-full" />
+      <div className="flex-1 overflow-y-auto bg-white flex items-start justify-center p-4 sm:p-8">
+        <div
+          className="max-w-4xl w-full text-gray-700
+            [&_p]:text-sm [&_p]:leading-relaxed
+            [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-gray-800
+            [&_h4]:text-sm [&_h4]:font-semibold [&_h4]:text-gray-600"
+          dangerouslySetInnerHTML={{ __html: current.html }}
+        />
       </div>
 
       {/* Navigation bar */}
       <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 bg-gray-900 border-t border-gray-700 flex-shrink-0">
         <button
-          onClick={goPrev}
+          onClick={() => setCurrentSlide((s) => Math.max(0, s - 1))}
           disabled={currentSlide === 0}
           className="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed"
         >
@@ -145,22 +229,13 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
           <span className="hidden sm:inline">Sebelumnya</span>
         </button>
 
-        <div className="flex items-center gap-3">
-          <span className="text-xs sm:text-sm text-gray-400">
-            Slide {currentSlide + 1} / {slideCount}
-          </span>
-          <button
-            onClick={goFullscreen}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition"
-            title="Fullscreen"
-          >
-            <MaximizeIcon className="w-4 h-4" />
-          </button>
-        </div>
+        <span className="text-xs sm:text-sm text-gray-400">
+          Slide {currentSlide + 1} / {slides.length}
+        </span>
 
         <button
-          onClick={goNext}
-          disabled={currentSlide >= slideCount - 1}
+          onClick={() => setCurrentSlide((s) => Math.min(slides.length - 1, s + 1))}
+          disabled={currentSlide === slides.length - 1}
           className="flex items-center gap-1 px-2 sm:px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <span className="hidden sm:inline">Berikutnya</span>
