@@ -65,24 +65,11 @@ export async function POST(request: NextRequest) {
       bb.on("error", reject);
     });
 
-    // Pipe request body to busboy
-    const reader = request.body?.getReader();
-    if (!reader) {
-      return NextResponse.json({ error: "No body" }, { status: 400 });
-    }
+    // Pipe request body to busboy using Web Stream → Node Stream conversion
+    const nodeStream = Readable.fromWeb(request.body as import("stream/web").ReadableStream);
+    nodeStream.pipe(bb);
 
-    const pushData = async () => {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          bb.end();
-          break;
-        }
-        bb.write(value);
-      }
-    };
-
-    await Promise.all([filePromise, pushData()]);
+    await filePromise;
 
     if (!fileBuffer || !fileName) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
