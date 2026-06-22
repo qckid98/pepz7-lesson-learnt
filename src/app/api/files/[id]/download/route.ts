@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { s3Client } from "@/lib/s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Rate limit: 30 downloads per minute
+    const limited = rateLimit(request, RATE_LIMITS.download);
+    if (limited) return limited;
+
     const { id } = await params;
 
     const file = await db.file.findUnique({
@@ -83,6 +88,15 @@ export async function GET(
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     }
     const buffer = Buffer.concat(chunks);
+
+    // Validate downloaded size matches database record
+    if (buffer.length !== Number(file.size)) {
+      console.error(`Download size mismatch: expected ${file.size}, got ${buffer.length} for file ${id}`);
+      return NextResponse.json(
+        { error: "File integrity check failed" },
+        { status: 500 }
+      );
+    }
 
     // Set headers — force download with original filename
     // Use application/octet-stream to prevent Safari from opening inline

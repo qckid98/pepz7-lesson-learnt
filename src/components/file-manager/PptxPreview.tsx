@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { FileTypeIcon, ChevronLeftIcon, ChevronRightIcon, MaximizeIcon } from "lucide-react";
+import DOMPurify from "dompurify";
 import JSZip from "jszip";
 
 interface PptxPreviewProps {
@@ -214,7 +215,7 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
             [&_p]:text-sm [&_p]:leading-relaxed
             [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-gray-800
             [&_h4]:text-sm [&_h4]:font-semibold [&_h4]:text-gray-600"
-          dangerouslySetInnerHTML={{ __html: current.html }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(current.html) }}
         />
       </div>
 

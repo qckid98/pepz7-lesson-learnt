@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { FileTypeIcon } from "lucide-react";
+import DOMPurify from "dompurify";
 // Static import — dynamic import breaks in Next.js production build
 import mammoth from "mammoth/mammoth.browser";
 
@@ -90,7 +91,7 @@ export default function DocxPreview({ fileId }: DocxPreviewProps) {
           [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:mb-3
           [&_a]:text-blue-600 [&_a]:underline
           [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-4 [&_blockquote]:italic"
-        dangerouslySetInnerHTML={{ __html: html }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }}
       />
     </div>
   );

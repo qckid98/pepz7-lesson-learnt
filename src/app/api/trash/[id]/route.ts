@@ -20,7 +20,7 @@ async function deleteFolderPermanentRecursive(folderId: string): Promise<void> {
     select: { id: true, s3Key: true },
   });
   for (const file of files) {
-    try { await deleteFile(file.s3Key); } catch { /* ignore s3 errors */ }
+    try { await deleteFile(file.s3Key); } catch (e) { console.error("S3 delete error:", file.s3Key, e); }
     await db.file.delete({ where: { id: file.id } });
   }
 
@@ -43,7 +43,7 @@ export async function DELETE(
 
     const file = await db.file.findUnique({ where: { id } });
     if (file) {
-      try { await deleteFile(file.s3Key); } catch { /* ignore */ }
+      try { await deleteFile(file.s3Key); } catch (e) { console.error("S3 delete error:", file.s3Key, e); }
       await db.file.delete({ where: { id } });
       return NextResponse.json({ success: true });
     }

@@ -8,9 +8,26 @@ interface OfficePreviewProps {
   type: "xlsx" | "docx" | "pptx";
 }
 
+interface ViewerInstance {
+  load: (source: string | ArrayBuffer) => Promise<void>;
+  destroy?: () => void;
+  sheetCount?: number;
+  sheetIndex?: number;
+  pageCount?: number;
+  currentPage?: number;
+  slideCount?: number;
+  slideIndex?: number;
+  nextSheet?: () => Promise<void>;
+  prevSheet?: () => Promise<void>;
+  nextPage?: () => Promise<void>;
+  prevPage?: () => Promise<void>;
+  nextSlide?: () => Promise<void>;
+  prevSlide?: () => Promise<void>;
+}
+
 export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewerRef = useRef<any>(null);
+  const viewerRef = useRef<ViewerInstance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -60,9 +77,16 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
           },
         };
 
+        // Type-safe module access — @silurus/ooxml exports namespaced modules
+        const silurusMod = mod as unknown as {
+          xlsx: { XlsxViewer: new (container: HTMLElement, opts?: Record<string, unknown>) => ViewerInstance };
+          docx: { DocxViewer: new (canvas: HTMLCanvasElement, opts?: Record<string, unknown>) => ViewerInstance };
+          pptx: { PptxViewer: new (canvas: HTMLCanvasElement, opts?: Record<string, unknown>) => ViewerInstance };
+        };
+
         if (type === "xlsx") {
           console.log("[OfficePreview] Creating XlsxViewer...");
-          const XlsxViewer = (mod as any).xlsx?.XlsxViewer;
+          const XlsxViewer = silurusMod.xlsx?.XlsxViewer;
           if (!XlsxViewer) throw new Error("XlsxViewer not found in module");
           const viewer = new XlsxViewer(containerRef.current, opts);
           await viewer.load(arrayBuffer);
@@ -73,7 +97,7 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
           }
         } else if (type === "docx") {
           console.log("[OfficePreview] Creating DocxViewer...");
-          const DocxViewer = (mod as any).docx?.DocxViewer;
+          const DocxViewer = silurusMod.docx?.DocxViewer;
           if (!DocxViewer) throw new Error("DocxViewer not found in module");
           const canvas = document.createElement("canvas");
           canvas.style.width = "100%";
@@ -88,7 +112,7 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
           }
         } else {
           console.log("[OfficePreview] Creating PptxViewer...");
-          const PptxViewer = (mod as any).pptx?.PptxViewer;
+          const PptxViewer = silurusMod.pptx?.PptxViewer;
           if (!PptxViewer) throw new Error("PptxViewer not found in module");
           const canvas = document.createElement("canvas");
           canvas.style.width = "100%";
@@ -129,9 +153,9 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
     const v = viewerRef.current;
     if (!v) return;
     try {
-      if (type === "xlsx") await v.prevSheet();
-      else if (type === "docx") await v.prevPage();
-      else await v.prevSlide();
+      if (type === "xlsx") await v.prevSheet?.();
+      else if (type === "docx") await v.prevPage?.();
+      else await v.prevSlide?.();
       updateIdx();
     } catch { /* ignore */ }
   };
@@ -140,9 +164,9 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
     const v = viewerRef.current;
     if (!v) return;
     try {
-      if (type === "xlsx") await v.nextSheet();
-      else if (type === "docx") await v.nextPage();
-      else await v.nextSlide();
+      if (type === "xlsx") await v.nextSheet?.();
+      else if (type === "docx") await v.nextPage?.();
+      else await v.nextSlide?.();
       updateIdx();
     } catch { /* ignore */ }
   };

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { s3Client, generateS3Key } from "@/lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { isFileTypeAllowed, getFileExtension } from "@/lib/validators";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -52,6 +53,10 @@ function getMimeType(filename: string, providedType: string): string {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 10 uploads per minute
+    const limited = rateLimit(request, RATE_LIMITS.upload);
+    if (limited) return limited;
+
     const session = await auth();
     if (!session?.user || session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
