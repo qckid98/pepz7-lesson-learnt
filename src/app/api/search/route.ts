@@ -1,29 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 /**
- * GET /api/search?q=keyword&type=all|pdf|image|video|audio|document
- * Search files by name. Respects folder visibility.
+ * GET /api/search?q=keyword&type=all|pdf|image|video|audio|document|spreadsheet|presentation
+ * Search files AND folders by name. Respects folder visibility for viewers.
  */
 export async function GET(request: NextRequest) {
   try {
+    // Rate limit: 30 searches per minute
+    const limited = rateLimit(request, RATE_LIMITS.search);
+    if (limited) return limited;
+
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const isAdmin = session.user.role === "ADMIN";
+
     const query = request.nextUrl.searchParams.get("q")?.trim();
     const type = request.nextUrl.searchParams.get("type") || "all";
 
-    if (!query || query.length < 2) {
+    if (!query || query.length < 1) {
       return NextResponse.json(
-        { error: "Query must be at least 2 characters" },
+        { error: "Query must be at least 1 character" },
         { status: 400 }
       );
     }
 
-    // Build mime type filter
+    // Build mime type filter for files
     let mimeFilter: object | undefined;
     switch (type) {
       case "pdf":
@@ -39,28 +46,33 @@ export async function GET(request: NextRequest) {
         mimeFilter = { mimeType: { startsWith: "audio/" } };
         break;
       case "document":
-        mimeFilter = {
-          OR: [
-            { mimeType: { contains: "word" } },
-            { mimeType: { contains: "document" } },
-            { mimeType: { contains: "sheet" } },
-            { mimeType: { contains: "excel" } },
-            { mimeType: { contains: "presentation" } },
-            { mimeType: { contains: "powerpoint" } },
-            { mimeType: "text/plain" },
-            { mimeType: "text/csv" },
-          ],
-        };
+        mimeFilter = { mimeType: { contains: "word" } };
+        break;
+      case "spreadsheet":
+        mimeFilter = { mimeType: { contains: "sheet" } };
+        break;
+      case "presentation":
+        mimeFilter = { mimeType: { contains: "presentation" } };
         break;
       default:
         mimeFilter = undefined;
     }
 
+    // Search files
     const files = await db.file.findMany({
       where: {
         name: { contains: query, mode: "insensitive" },
         deletedAt: null,
         ...mimeFilter,
+        // Viewers can only see files in public folders or root
+        ...(!isAdmin
+          ? {
+              OR: [
+                { folder: { visibility: "PUBLIC" } },
+                { folderId: null },
+              ],
+            }
+          : {}),
       },
       include: {
         folder: { select: { id: true, name: true, visibility: true } },
@@ -69,8 +81,33 @@ export async function GET(request: NextRequest) {
       take: 50,
     });
 
+    // Search folders (only when type is "all")
+    let folders: Array<{
+      id: string;
+      name: string;
+      parentId: string | null;
+      visibility: string;
+      _count?: { files: number; children: number };
+    }> = [];
+
+    if (type === "all") {
+      folders = await db.folder.findMany({
+        where: {
+          name: { contains: query, mode: "insensitive" },
+          deletedAt: null,
+          // Viewers can only see public folders
+          ...(!isAdmin ? { visibility: "PUBLIC" } : {}),
+        },
+        include: {
+          _count: { select: { files: true, children: true } },
+        },
+        orderBy: { name: "asc" },
+        take: 20,
+      });
+    }
+
     // Convert BigInt to string for JSON serialization
-    const results = files.map((file) => ({
+    const fileResults = files.map((file) => ({
       ...file,
       size: file.size.toString(),
     }));
@@ -78,8 +115,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       query,
       type,
-      count: results.length,
-      results,
+      count: fileResults.length + folders.length,
+      results: fileResults,
+      folders,
     });
   } catch (error) {
     console.error("Search error:", error);

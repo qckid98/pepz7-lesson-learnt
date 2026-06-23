@@ -23,6 +23,7 @@ import {
   LockIcon,
   SearchIcon,
   MenuIcon,
+  XIcon,
 } from "lucide-react";
 
 interface FileItem {
@@ -94,6 +95,8 @@ export default function ViewerFileManager() {
   const [loading, setLoading] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; id: string; name: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<{ files: FileItem[]; folders: FolderItem[] } | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -248,14 +251,39 @@ export default function ViewerFileManager() {
     });
   }
 
-  // ===== Filter files by search =====
-  const displayFiles = searchQuery
-    ? files.filter((f) => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : files;
+  // ===== Search handler with debounce =====
+  const handleSearch = useCallback(async (q: string) => {
+    setSearchQuery(q);
+    if (!q.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    setSearchLoading(true);
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}&type=all`);
+      if (res.ok) {
+        const data = await res.json();
+        setSearchResults({ files: data.results || [], folders: data.folders || [] });
+      }
+    } catch { /* ignore */ }
+    setSearchLoading(false);
+  }, []);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery !== "") handleSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, handleSearch]);
+
+  // ===== Use search results if searching, otherwise current folder =====
+  const displayFolders = searchResults && searchQuery.trim() ? searchResults.folders : folders;
+  const displayFiles = searchResults && searchQuery.trim() ? searchResults.files : files;
 
   // ===== Combined items (folders first, then files) =====
   const items: Array<{ type: "folder"; data: FolderItem } | { type: "file"; data: FileItem }> = [
-    ...folders.map((f) => ({ type: "folder" as const, data: f })),
+    ...displayFolders.map((f) => ({ type: "folder" as const, data: f })),
     ...displayFiles.map((f) => ({ type: "file" as const, data: f })),
   ];
 
@@ -317,9 +345,20 @@ export default function ViewerFileManager() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari file..."
-              className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Cari file & folder..."
+              className="w-full pl-9 pr-9 py-1.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
             />
+            {searchLoading && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+            )}
+            {searchQuery && !searchLoading && (
+              <button
+                onClick={() => { setSearchQuery(""); setSearchResults(null); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            )}
           </div>
           <div className="flex-1" />
           <div className="flex border border-gray-200 rounded-lg overflow-hidden">
@@ -354,7 +393,7 @@ export default function ViewerFileManager() {
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-gray-400">
               <FolderIcon className="w-12 h-12 mb-2 text-gray-300" />
-              <p>{searchQuery ? "Tidak ada file yang cocok" : "Belum ada file atau folder"}</p>
+              <p>{searchResults && searchQuery.trim() ? `Tidak ditemukan hasil untuk "${searchQuery}"` : "Belum ada file atau folder"}</p>
             </div>
           ) : layout === "grid" ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">

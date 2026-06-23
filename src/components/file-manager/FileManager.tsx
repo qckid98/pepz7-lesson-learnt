@@ -33,6 +33,7 @@ import {
   MenuIcon,
   CheckCircleIcon,
   XCircleIcon,
+  SearchIcon,
 } from "lucide-react";
 
 // ============ Helper: File icon by type ============
@@ -76,6 +77,9 @@ export default function FileManager() {
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [uploads, setUploads] = useState<Array<{ id: string; name: string; size: number; progress: number; status: "uploading" | "done" | "error"; error?: string }>>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<{ files: any[]; folders: any[] } | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   // ===== Fetch data =====
   const fetchData = useCallback(async () => {
@@ -156,7 +160,36 @@ export default function FileManager() {
   const handleNavigate = (folderId: string | null) => {
     store.setCurrentFolder(folderId);
     store.setViewMode("all");
+    // Clear search when navigating
+    setSearchQuery("");
+    setSearchResults(null);
   };
+
+  // ===== Search =====
+  const handleSearch = useCallback(async (q: string) => {
+    setSearchQuery(q);
+    if (!q.trim() || q.trim().length < 1) {
+      setSearchResults(null);
+      return;
+    }
+    setSearchLoading(true);
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}&type=all`);
+      if (res.ok) {
+        const data = await res.json();
+        setSearchResults({ files: data.results || [], folders: data.folders || [] });
+      }
+    } catch { /* ignore */ }
+    setSearchLoading(false);
+  }, []);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery !== "") handleSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, handleSearch]);
 
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -404,6 +437,15 @@ export default function FileManager() {
 
   // ===== Sort items =====
   const sortedItems = (() => {
+    // If search is active, use search results instead of current folder
+    if (searchResults && searchQuery.trim()) {
+      const items: Array<(FileItem | FolderItem) & { _isFolder: boolean }> = [
+        ...searchResults.folders.map((f) => ({ ...f, _isFolder: true })),
+        ...searchResults.files.map((f) => ({ ...f, _isFolder: false, size: f.size?.toString() || "0" })),
+      ];
+      return items;
+    }
+
     const items: Array<(FileItem | FolderItem) & { _isFolder: boolean }> = [
       ...store.folders.map((f) => ({ ...f, _isFolder: true })),
       ...store.files.map((f) => ({ ...f, _isFolder: false })),
@@ -546,21 +588,35 @@ export default function FileManager() {
           onToggleLayout={store.toggleLayout}
           viewMode={store.viewMode}
           onMenuClick={() => setSidebarOpen(true)}
+          searchQuery={searchQuery}
+          onSearchChange={handleSearch}
+          searchLoading={searchLoading}
         />
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-1 px-3 sm:px-6 py-2 text-xs sm:text-sm border-b border-gray-100 flex-wrap overflow-x-auto">
-          {store.breadcrumbs.map((crumb, i) => (
-            <div key={i} className="flex items-center gap-1">
-              {i > 0 && <ChevronRightIcon className="w-4 h-4 text-gray-400" />}
-              <button
-                onClick={() => i === 0 ? handleNavigate(null) : handleNavigate(crumb.id)}
-                className={`hover:text-blue-600 ${i === store.breadcrumbs.length - 1 ? "font-semibold text-gray-900" : "text-gray-500"}`}
-              >
-                {crumb.name}
-              </button>
-            </div>
-          ))}
+          {searchResults && searchQuery.trim() ? (
+            <button
+              onClick={() => { setSearchQuery(""); setSearchResults(null); }}
+              className="text-blue-600 hover:underline font-medium"
+            >
+              ← Kembali ke {store.currentFolderId ? "folder" : "My Files"}
+            </button>
+          ) : (
+            <>
+              {store.breadcrumbs.map((crumb, i) => (
+                <div key={i} className="flex items-center gap-1">
+                  {i > 0 && <ChevronRightIcon className="w-4 h-4 text-gray-400" />}
+                  <button
+                    onClick={() => i === 0 ? handleNavigate(null) : handleNavigate(crumb.id)}
+                    className={`hover:text-blue-600 ${i === store.breadcrumbs.length - 1 ? "font-semibold text-gray-900" : "text-gray-500"}`}
+                  >
+                    {crumb.name}
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
         </div>
 
         {/* New folder form */}
@@ -641,7 +697,7 @@ export default function FileManager() {
           ) : sortedItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-gray-400">
               <FolderIcon className="w-12 h-12 mb-2 text-gray-300" />
-              <p>{store.viewMode === "trash" ? "Tempat sampah kosong" : "Belum ada file atau folder"}</p>
+              <p>{searchResults && searchQuery.trim() ? `Tidak ditemukan hasil untuk "${searchQuery}"` : store.viewMode === "trash" ? "Tempat sampah kosong" : "Belum ada file atau folder"}</p>
             </div>
           ) : store.layout === "grid" ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -953,6 +1009,9 @@ function Toolbar(props: {
   onToggleLayout: () => void;
   viewMode: string;
   onMenuClick?: () => void;
+  searchQuery?: string;
+  onSearchChange?: (q: string) => void;
+  searchLoading?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2 px-3 sm:px-6 py-3 border-b border-gray-100">
@@ -975,6 +1034,22 @@ function Toolbar(props: {
             <PlusIcon className="w-4 h-4" /> <span className="hidden sm:inline">Folder Baru</span>
           </button>
         </>
+      )}
+      {/* Search bar — full DB search */}
+      {props.viewMode !== "trash" && props.onSearchChange && (
+        <div className="relative flex-1 max-w-xs">
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={props.searchQuery || ""}
+            onChange={(e) => props.onSearchChange?.(e.target.value)}
+            placeholder="Cari file & folder..."
+            className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {props.searchLoading && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+          )}
+        </div>
       )}
       <div className="flex-1" />
       <button onClick={() => props.onSort("name")} className="text-xs sm:text-sm text-gray-500 hover:text-gray-700 px-2 py-1 hidden sm:block">
