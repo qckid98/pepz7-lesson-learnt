@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { formatFileSize, getFileCategory } from "@/lib/validators";
 import OfficePreview from "@/components/file-manager/OfficePreview";
+import DocxPreview from "@/components/file-manager/DocxPreview";
 
 interface PreviewFile {
   id: string;
@@ -359,7 +360,7 @@ export default function PreviewOverlay({
         ) : category === "spreadsheet" ? (
           <OfficePreview fileId={file.id} type="xlsx" />
         ) : category === "document" ? (
-          <OfficePreview fileId={file.id} type="docx" />
+          <DocxPreview fileId={file.id} />
         ) : category === "presentation" ? (
           <OfficePreview fileId={file.id} type="pptx" />
         ) : previewUrl && category === "text" ? (
