@@ -463,8 +463,8 @@ export default function ViewerFileManager() {
                       onContextMenu={(e) => type === "file" && handleContextMenu(e, data as FileItem)}
                       className="hover:bg-gray-50 cursor-pointer"
                     >
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-2">
+                      <td className="px-4 py-2.5 max-w-0">
+                        <div className="flex items-center gap-2 overflow-hidden">
                           {type === "folder" ? (
                             <FolderIcon className="w-5 h-5 text-blue-400 flex-shrink-0" />
                           ) : (data as FileItem).previewUrl ? (
@@ -481,7 +481,7 @@ export default function ViewerFileManager() {
                           ) : (
                             getFileIcon((data as FileItem).mimeType)
                           )}
-                          <span className="text-sm text-gray-900 truncate">{data.name}</span>
+                          <span className="text-sm text-gray-900 truncate min-w-0">{data.name}</span>
                           {type === "folder" && (data as FolderItem).visibility === "PRIVATE" && (
                             <LockIcon className="w-3 h-3 text-amber-500" />
                           )}
