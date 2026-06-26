@@ -6,10 +6,8 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "1gb",
     },
-    proxyClientMaxBodySize: "1gb",
   },
   // @silurus/ooxml uses ESM-only imports and Web Workers
-  // transpilePackages ensures the library is properly bundled
   transpilePackages: ["@silurus/ooxml"],
   images: {
     remotePatterns: [
