@@ -309,7 +309,7 @@ export default function FileManager() {
 
     const newUploads = fileArray.map((file, i) => ({
       id: `${Date.now()}-f${i}`,
-      name: (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
+      name: file.name,
       size: file.size,
       progress: 0,
       status: "uploading" as const,
@@ -726,10 +726,10 @@ export default function FileManager() {
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="w-10 px-4 py-2"><input type="checkbox" checked={allIds.length > 0 && allIds.every((id) => store.selectedIds.has(id))} onChange={(e) => e.target.checked ? store.selectAll(allIds) : store.clearSelection()} className="rounded" /></th>
-                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer" onClick={() => store.setSort("name")}>Nama</th>
-                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Tipe</th>
-                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer hidden md:table-cell" onClick={() => store.setSort("size")}>Ukuran</th>
-                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer hidden sm:table-cell" onClick={() => store.setSort("modified")}>Diubah</th>
+                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer w-full" onClick={() => store.setSort("name")}>Nama</th>
+                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell whitespace-nowrap">Tipe</th>
+                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer hidden md:table-cell whitespace-nowrap" onClick={() => store.setSort("size")}>Ukuran</th>
+                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer hidden sm:table-cell whitespace-nowrap" onClick={() => store.setSort("modified")}>Diubah</th>
                     <th className="w-10 px-2 py-2"></th>
                   </tr>
                 </thead>

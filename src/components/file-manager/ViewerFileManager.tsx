@@ -448,10 +448,10 @@ export default function ViewerFileManager() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">Nama</th>
-                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Tipe</th>
-                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Ukuran</th>
-                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Tanggal</th>
+                    <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase w-full">Nama</th>
+                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell whitespace-nowrap">Tipe</th>
+                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden md:table-cell whitespace-nowrap">Ukuran</th>
+                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell whitespace-nowrap">Tanggal</th>
                     <th className="w-10 px-2 py-2"></th>
                   </tr>
                 </thead>
