@@ -90,17 +90,17 @@ export const RATE_LIMITS = {
     message: "Too many login attempts. Try again in 5 minutes.",
   },
 
-  // Upload: 10 uploads per minute
+  // Upload: disabled (admin-only endpoint, folder uploads need high limits)
   upload: {
     windowMs: 60 * 1000,
-    max: 10,
+    max: 999,
     message: "Too many uploads. Please wait.",
   },
 
-  // Download: 30 downloads per minute
+  // Download: 100 downloads per minute (viewers browsing files)
   download: {
     windowMs: 60 * 1000,
-    max: 30,
+    max: 100,
     message: "Too many downloads. Please wait.",
   },
 
