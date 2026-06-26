@@ -3,10 +3,11 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { s3Client, generateS3Key } from "@/lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { isFileTypeAllowed, getFileExtension } from "@/lib/validators";
+import { isFileTypeAllowed, getFileExtension, MAX_UPLOAD_SIZE } from "@/lib/validators";
+import { Readable } from "stream";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 600; // 10 minutes for large uploads
 export const dynamic = "force-dynamic";
 
 // MIME type fallback from extension
@@ -47,15 +48,11 @@ function getMimeType(filename: string, providedType: string): string {
 
 /**
  * POST /api/files/upload-direct
- * Upload file via server proxy (avoids CORS issues with S3)
- * Uses request.formData() which handles binary data correctly
+ * Upload file via server proxy — streams to S3 to avoid memory issues
+ * Uses file.stream() → S3 PutObjectCommand Body (stream, not buffer)
  */
 export async function POST(request: NextRequest) {
   try {
-    // Note: Upload rate limiting removed — admin-only endpoint, 
-    // folder uploads can send 50+ files in rapid succession.
-    // Auth check below is sufficient protection.
-
     const session = await auth();
     if (!session?.user || session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -72,7 +69,6 @@ export async function POST(request: NextRequest) {
     const fileName = file.name;
     let fileType = file.type || "";
 
-    // Fallback: detect mime type from extension if browser doesn't provide it
     if (!fileType) {
       fileType = getMimeType(fileName, "");
     }
@@ -87,6 +83,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate file size (200MB max)
+    if (fileSize > MAX_UPLOAD_SIZE) {
+      return NextResponse.json(
+        { error: `File too large. Max ${MAX_UPLOAD_SIZE / 1024 / 1024}MB` },
+        { status: 400 }
+      );
+    }
+
     // If folderId provided, verify folder exists
     if (folderId) {
       const folder = await db.folder.findUnique({ where: { id: folderId } });
@@ -95,19 +99,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Read file as ArrayBuffer — this preserves binary data correctly
-    const arrayBuffer = await file.arrayBuffer();
-    const fileBuffer = Buffer.from(arrayBuffer);
-
     // Generate S3 key
     const s3Key = generateS3Key(fileName, folderId || undefined);
 
-    // Upload to S3
+    // Stream file to S3 — avoids loading entire file into memory
+    // file.stream() returns a ReadableStream (Web API)
+    // Convert to Node.js Readable for AWS SDK
+    const nodeStream = Readable.fromWeb(file.stream() as import("stream/web").ReadableStream);
+
     const command = new PutObjectCommand({
       Bucket: process.env.S3_BUCKET || "file-sharing-prod",
       Key: s3Key,
-      Body: fileBuffer,
+      Body: nodeStream,
       ContentType: fileType,
+      ContentLength: fileSize,
     });
 
     await s3Client.send(command);
