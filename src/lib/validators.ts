@@ -1,41 +1,46 @@
 import { z } from "zod";
 
-// Allowed file types and their max sizes
+// Global max file size: 200MB for all file types
+const MAX_FILE_SIZE = 200 * 1024 * 1024;
+
+// Allowed file types (max size is global 200MB for all)
 export const ALLOWED_FILE_TYPES: Record<string, { maxSize: number }> = {
   // Documents
-  "application/pdf": { maxSize: 100 * 1024 * 1024 },
-  "application/msword": { maxSize: 100 * 1024 * 1024 },
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: 100 * 1024 * 1024 },
-  "application/vnd.ms-excel": { maxSize: 50 * 1024 * 1024 },
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { maxSize: 50 * 1024 * 1024 },
-  "application/vnd.ms-powerpoint": { maxSize: 200 * 1024 * 1024 },
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation": { maxSize: 200 * 1024 * 1024 },
-  "text/plain": { maxSize: 10 * 1024 * 1024 },
-  "text/csv": { maxSize: 50 * 1024 * 1024 },
+  "application/pdf": { maxSize: MAX_FILE_SIZE },
+  "application/msword": { maxSize: MAX_FILE_SIZE },
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: MAX_FILE_SIZE },
+  "application/vnd.ms-excel": { maxSize: MAX_FILE_SIZE },
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { maxSize: MAX_FILE_SIZE },
+  "application/vnd.ms-powerpoint": { maxSize: MAX_FILE_SIZE },
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": { maxSize: MAX_FILE_SIZE },
+  "text/plain": { maxSize: MAX_FILE_SIZE },
+  "text/csv": { maxSize: MAX_FILE_SIZE },
   // Images
-  "image/jpeg": { maxSize: 50 * 1024 * 1024 },
-  "image/png": { maxSize: 50 * 1024 * 1024 },
-  "image/gif": { maxSize: 25 * 1024 * 1024 },
-  "image/webp": { maxSize: 50 * 1024 * 1024 },
-  "image/svg+xml": { maxSize: 5 * 1024 * 1024 },
+  "image/jpeg": { maxSize: MAX_FILE_SIZE },
+  "image/png": { maxSize: MAX_FILE_SIZE },
+  "image/gif": { maxSize: MAX_FILE_SIZE },
+  "image/webp": { maxSize: MAX_FILE_SIZE },
+  "image/svg+xml": { maxSize: MAX_FILE_SIZE },
   // Video
-  "video/mp4": { maxSize: 5 * 1024 * 1024 * 1024 },
-  "video/webm": { maxSize: 5 * 1024 * 1024 * 1024 },
-  "video/quicktime": { maxSize: 5 * 1024 * 1024 * 1024 },
+  "video/mp4": { maxSize: MAX_FILE_SIZE },
+  "video/webm": { maxSize: MAX_FILE_SIZE },
+  "video/quicktime": { maxSize: MAX_FILE_SIZE },
   // Audio
-  "audio/mpeg": { maxSize: 500 * 1024 * 1024 },
-  "audio/wav": { maxSize: 500 * 1024 * 1024 },
-  "audio/ogg": { maxSize: 500 * 1024 * 1024 },
+  "audio/mpeg": { maxSize: MAX_FILE_SIZE },
+  "audio/wav": { maxSize: MAX_FILE_SIZE },
+  "audio/ogg": { maxSize: MAX_FILE_SIZE },
   // Archives
-  "application/zip": { maxSize: 5 * 1024 * 1024 * 1024 },
-  "application/x-rar-compressed": { maxSize: 5 * 1024 * 1024 * 1024 },
-  "application/x-7z-compressed": { maxSize: 5 * 1024 * 1024 * 1024 },
+  "application/zip": { maxSize: MAX_FILE_SIZE },
+  "application/x-rar-compressed": { maxSize: MAX_FILE_SIZE },
+  "application/x-7z-compressed": { maxSize: MAX_FILE_SIZE },
 };
+
+export const MAX_UPLOAD_SIZE = MAX_FILE_SIZE;
 
 export const uploadRequestSchema = z.object({
   fileName: z.string().min(1).max(255),
   fileType: z.string().min(1),
-  fileSize: z.number().positive().max(5 * 1024 * 1024 * 1024),
+  fileSize: z.number().positive().max(MAX_FILE_SIZE),
   folderId: z.string().optional().nullable(),
 });
 
@@ -63,30 +68,18 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-/**
- * Check if a file type is allowed
- */
 export function isFileTypeAllowed(mimeType: string): boolean {
   return mimeType in ALLOWED_FILE_TYPES;
 }
 
-/**
- * Get max file size for a given mime type
- */
 export function getMaxFileSize(mimeType: string): number {
-  return ALLOWED_FILE_TYPES[mimeType]?.maxSize || 0;
+  return ALLOWED_FILE_TYPES[mimeType]?.maxSize || MAX_FILE_SIZE;
 }
 
-/**
- * Get file extension from filename
- */
 export function getFileExtension(fileName: string): string {
   return fileName.split(".").pop()?.toLowerCase() || "";
 }
 
-/**
- * Format file size to human readable
- */
 export function formatFileSize(bytes: number | bigint): string {
   const size = Number(bytes);
   if (size === 0) return "0 B";
@@ -96,14 +89,10 @@ export function formatFileSize(bytes: number | bigint): string {
   return parseFloat((size / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
 
-/**
- * Get file category from mime type
- */
 export function getFileCategory(mimeType: string, extension?: string): string {
   const ext = (extension || "").toLowerCase();
   const mt = (mimeType || "").toLowerCase();
 
-  // Check by extension first (more reliable than mime type from browser)
   if (["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"].includes(ext)) return "image";
   if (["mp4", "webm", "mov", "avi", "mkv"].includes(ext)) return "video";
   if (["mp3", "wav", "ogg", "flac", "aac"].includes(ext)) return "audio";
@@ -113,7 +102,6 @@ export function getFileCategory(mimeType: string, extension?: string): string {
   if (["ppt", "pptx"].includes(ext)) return "presentation";
   if (["txt", "md", "log"].includes(ext)) return "text";
 
-  // Fallback to mime type
   if (mt.startsWith("image/")) return "image";
   if (mt.startsWith("video/")) return "video";
   if (mt.startsWith("audio/")) return "audio";
