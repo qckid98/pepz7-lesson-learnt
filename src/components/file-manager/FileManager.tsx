@@ -81,6 +81,15 @@ export default function FileManager() {
   const [searchResults, setSearchResults] = useState<{ files: any[]; folders: any[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [conflictDialog, setConflictDialog] = useState<{
+    files: File[];
+    folderId: string | null;
+    existingNames: string[];
+    currentIndex: number;
+    skipAllSame: boolean;
+    overwriteAllSame: boolean;
+    resolvedFiles: File[];
+  } | null>(null);
 
   // ===== Fetch data =====
   const fetchData = useCallback(async () => {
@@ -211,60 +220,132 @@ export default function FileManager() {
     } catch { /* ignore */ }
   };
 
-  const handleUpload = async (files: FileList) => {
-    const fileArray = Array.from(files);
-    const newUploads = fileArray.map((file, i) => ({
-      id: `${Date.now()}-${i}`,
-      name: file.name,
-      size: file.size,
-      progress: 0,
-      status: "uploading" as const,
-    }));
-    setUploads((prev) => [...prev, ...newUploads]);
+  // ===== Core upload single file =====
+  const uploadSingleFile = async (file: File, folderId: string | null, uploadId: string) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folderId", folderId || "");
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/files/upload-direct");
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const progress = Math.round((event.loaded / event.total) * 100);
+            setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress } : u));
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress: 100, status: "done" } : u));
+            resolve();
+          } else {
+            let errMsg = "Upload gagal";
+            try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch {}
+            setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: errMsg } : u));
+            reject(new Error(errMsg));
+          }
+        };
+        xhr.onerror = () => {
+          setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: "Network error" } : u));
+          reject(new Error("Network error"));
+        };
+        xhr.send(formData);
+      });
+    } catch (e) {
+      console.error("Upload error:", e);
+    }
+  };
 
-    for (let i = 0; i < fileArray.length; i++) {
-      const file = fileArray[i];
-      const uploadId = newUploads[i].id;
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folderId", store.currentFolderId || "");
+  // ===== Check existing files and resolve conflicts =====
+  const checkAndUpload = async (fileArray: File[], folderId: string | null) => {
+    // Check which files already exist
+    const fileNames = fileArray.map((f) => f.name.replace(/^.*\//, ""));
+    let existingNames: string[] = [];
+    try {
+      const res = await fetch("/api/files/check-existing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId, fileNames }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        existingNames = data.existing || [];
+      }
+    } catch { /* ignore */ }
 
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", "/api/files/upload-direct");
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const progress = Math.round((event.loaded / event.total) * 100);
-              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress } : u));
-            }
-          };
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress: 100, status: "done" } : u));
-              resolve();
-            } else {
-              let errMsg = "Upload gagal";
-              try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch {}
-              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: errMsg } : u));
-              reject(new Error(errMsg));
-            }
-          };
-          xhr.onerror = () => {
-            setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: "Network error" } : u));
-            reject(new Error("Network error"));
-          };
-          xhr.send(formData);
+    // Filter out files that conflict
+    let filesToUpload: File[] = [];
+    let skipAllSame = false;
+
+    if (existingNames.length > 0) {
+      // Show conflict dialog
+      const conflictFiles = fileArray.filter((f) => existingNames.includes(f.name.replace(/^.*\//, "")));
+      const nonConflictFiles = fileArray.filter((f) => !existingNames.includes(f.name.replace(/^.*\//, "")));
+
+      // Upload non-conflicting files immediately
+      const newUploads = nonConflictFiles.map((file, i) => ({
+        id: `${Date.now()}-${i}`,
+        name: file.name.replace(/^.*\//, ""),
+        size: file.size,
+        progress: 0,
+        status: "uploading" as const,
+      }));
+      setUploads((prev) => [...prev, ...newUploads]);
+
+      for (let i = 0; i < nonConflictFiles.length; i++) {
+        await uploadSingleFile(nonConflictFiles[i], folderId, newUploads[i].id);
+      }
+
+      // Show conflict dialog for conflicting files
+      filesToUpload = await new Promise<File[]>((resolve) => {
+        setConflictDialog({
+          files: conflictFiles,
+          folderId,
+          existingNames,
+          currentIndex: 0,
+          skipAllSame: false,
+          overwriteAllSame: false,
+          resolvedFiles: [],
         });
-      } catch (e) {
-        console.error("Upload error:", e);
+
+        // Store resolve function for dialog to call
+        (window as any).__resolveConflict = (result: File[]) => {
+          setConflictDialog(null);
+          resolve(result);
+        };
+      });
+
+      skipAllSame = true; // If we get here, dialog was resolved
+    } else {
+      filesToUpload = fileArray;
+    }
+
+    // Upload resolved files
+    if (filesToUpload.length > 0) {
+      const moreUploads = filesToUpload.map((file, i) => ({
+        id: `${Date.now()}-r${i}`,
+        name: file.name.replace(/^.*\//, ""),
+        size: file.size,
+        progress: 0,
+        status: "uploading" as const,
+      }));
+      setUploads((prev) => [...prev, ...moreUploads]);
+
+      for (let i = 0; i < filesToUpload.length; i++) {
+        await uploadSingleFile(filesToUpload[i], folderId, moreUploads[i].id);
       }
     }
+
     fetchData();
-    // Auto-clear only successful uploads after 3 seconds — keep errors visible
     setTimeout(() => {
       setUploads((prev) => prev.filter((u) => u.status !== "done"));
     }, 3000);
+  };
+
+  const handleUpload = async (files: FileList) => {
+    const fileArray = Array.from(files);
+    await checkAndUpload(fileArray, store.currentFolderId);
   };
 
   // ===== Upload folder (drag & drop or picker) =====
@@ -308,63 +389,23 @@ export default function FileManager() {
       return parentId;
     }
 
-    const newUploads = fileArray.map((file, i) => ({
-      id: `${Date.now()}-f${i}`,
-      name: file.name,
-      size: file.size,
-      progress: 0,
-      status: "uploading" as const,
-    }));
-    setUploads((prev) => [...prev, ...newUploads]);
+    // Group files by their target folder, then check conflicts per folder
+    const filesByFolder = new Map<string, File[]>();
 
-    for (let i = 0; i < fileArray.length; i++) {
-      const file = fileArray[i];
-      const uploadId = newUploads[i].id;
+    for (const file of fileArray) {
       const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || "";
-
       const dirPath = relativePath.includes("/") ? relativePath.substring(0, relativePath.lastIndexOf("/")) : "";
       const targetFolderId = await getOrCreateFolder(dirPath);
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folderId", targetFolderId);
-
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", "/api/files/upload-direct");
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const progress = Math.round((event.loaded / event.total) * 100);
-              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress } : u));
-            }
-          };
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress: 100, status: "done" } : u));
-              resolve();
-            } else {
-              let errMsg = "Upload gagal";
-              try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch {}
-              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: errMsg } : u));
-              reject(new Error(errMsg));
-            }
-          };
-          xhr.onerror = () => {
-            setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: "Network error" } : u));
-            reject(new Error("Network error"));
-          };
-          xhr.send(formData);
-        });
-      } catch (e) {
-        console.error("Upload error:", e);
+      if (!filesByFolder.has(targetFolderId)) {
+        filesByFolder.set(targetFolderId, []);
       }
+      filesByFolder.get(targetFolderId)!.push(file);
     }
-    fetchData();
-    // Auto-clear only successful uploads after 3 seconds — keep errors visible
-    setTimeout(() => {
-      setUploads((prev) => prev.filter((u) => u.status !== "done"));
-    }, 3000);
+
+    // Upload each group with conflict checking
+    for (const [folderId, files] of filesByFolder) {
+      await checkAndUpload(files, folderId);
+    }
   };
 
   const handleRename = async (id: string, type: "file" | "folder", newName: string) => {
@@ -780,6 +821,17 @@ export default function FileManager() {
           e.target.value = ""; // Reset so same folder can be selected again
         }}
       />
+
+      {/* Conflict dialog */}
+      {conflictDialog && (
+        <ConflictDialog
+          files={conflictDialog.files}
+          existingNames={conflictDialog.existingNames}
+          onResolve={(resolved: File[]) => {
+            (window as any).__resolveConflict?.(resolved);
+          }}
+        />
+      )}
 
       {/* Delete loading overlay */}
       {deleteLoading && (
@@ -1330,4 +1382,99 @@ function MenuItem({ icon, label, onClick, danger }: { icon: React.ReactNode; lab
 
 function Divider() {
   return <div className="my-1 border-t border-gray-100" />;
+}
+
+// ============ Conflict Dialog ============
+function ConflictDialog({ files, existingNames, onResolve }: {
+  files: File[];
+  existingNames: string[];
+  onResolve: (resolved: File[]) => void;
+}) {
+  const [skipAllSame, setSkipAllSame] = useState(false);
+  const [resolved, setResolved] = useState<File[]>([]);
+  const [remaining, setRemaining] = useState(files);
+
+  const currentFile = remaining[0];
+  const currentName = currentFile?.name.replace(/^.*\//, "") || "";
+  const isLast = remaining.length <= 1;
+
+  function handleAction(action: "skip" | "overwrite") {
+    let newResolved = [...resolved];
+    if (action === "overwrite") {
+      newResolved.push(currentFile);
+    }
+    // If skipAllSame or overwriteAllSame, resolve all remaining
+    if (skipAllSame && action === "skip") {
+      onResolve(newResolved);
+      return;
+    }
+    if (skipAllSame && action === "overwrite") {
+      newResolved.push(...remaining.slice(1));
+      onResolve(newResolved);
+      return;
+    }
+    if (isLast) {
+      onResolve(newResolved);
+    } else {
+      setResolved(newResolved);
+      setRemaining(remaining.slice(1));
+    }
+  }
+
+  if (!currentFile) {
+    onResolve(resolved);
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+        <h3 className="text-lg font-bold text-gray-900 mb-2">File sudah ada</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          <span className="font-medium text-gray-700">{currentName}</span> sudah ada di folder ini.
+          Apa yang ingin Anda lakukan?
+        </p>
+
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => handleAction("skip")}
+            className="flex items-center justify-between px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm"
+          >
+            <span>Skip (jangan upload)</span>
+            <span className="text-xs text-gray-400">File lama tetap</span>
+          </button>
+          <button
+            onClick={() => handleAction("overwrite")}
+            className="flex items-center justify-between px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+          >
+            <span>Overwrite (ganti file lama)</span>
+            <span className="text-xs text-blue-200">Upload yang baru</span>
+          </button>
+        </div>
+
+        {/* Skip All Same checkbox */}
+        <label className="flex items-center gap-2 mt-4 text-sm text-gray-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={skipAllSame}
+            onChange={(e) => setSkipAllSame(e.target.checked)}
+            className="rounded"
+          />
+          Terapkan untuk semua file yang sama ({remaining.length} file tersisa)
+        </label>
+
+        <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
+          <span className="text-xs text-gray-400">
+            {remaining.length} dari {files.length} file perlu konfirmasi
+          </span>
+          <button
+            onClick={() => onResolve(resolved)}
+            className="text-sm text-gray-500 hover:text-gray-700"
+          >
+            Skip semua
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
