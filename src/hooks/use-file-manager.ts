@@ -28,7 +28,7 @@ export interface FolderItem {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  _count?: { files: number; children: number };
+  _count?: { files: number; children: number; totalFiles?: number; totalSubFolders?: number };
 }
 
 export interface BreadcrumbItem {

@@ -45,7 +45,7 @@ interface FolderItem {
   name: string;
   parentId: string | null;
   visibility: "PUBLIC" | "PRIVATE";
-  _count?: { files: number; children: number };
+  _count?: { files: number; children: number; totalFiles?: number; totalSubFolders?: number };
 }
 
 interface BreadcrumbItem {
@@ -436,7 +436,7 @@ export default function ViewerFileManager() {
                     <p className="text-xs text-center text-gray-700 truncate w-full">{data.name}</p>
                     <p className="text-[10px] text-gray-400">
                       {type === "folder"
-                        ? `${(data as FolderItem)._count?.files || 0} file`
+                        ? `${(data as FolderItem)._count?.totalFiles ?? (data as FolderItem)._count?.files ?? 0} file`
                         : formatFileSize(BigInt((data as FileItem).size))}
                     </p>
                   </div>

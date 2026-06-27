@@ -1162,9 +1162,9 @@ function GridCard(props: {
         ) : (
           <p className="text-xs text-center text-gray-700 truncate w-full">{props.item.name}</p>
         )}
-        <p className="text-[10px] text-gray-400">
-          {isFolder ? `${(props.item as FolderItem)._count?.files || 0} file` : file ? formatFileSize(BigInt(file.size)) : ""}
-        </p>
+            <p className="text-[10px] text-gray-400">
+              {isFolder ? `${(props.item as FolderItem)._count?.totalFiles ?? (props.item as FolderItem)._count?.files ?? 0} file` : file ? formatFileSize(BigInt(file.size)) : ""}
+            </p>
       </div>
     </div>
   );

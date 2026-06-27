@@ -3,6 +3,37 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createFolderSchema } from "@/lib/validators";
 
+/** Recursively count all files inside a folder (including sub-folders) */
+async function countAllFiles(folderId: string): Promise<number> {
+  let count = 0;
+  // Count direct files
+  const directFiles = await db.file.count({ where: { folderId, deletedAt: null } });
+  count += directFiles;
+  // Recurse into sub-folders
+  const subFolders = await db.folder.findMany({
+    where: { parentId: folderId, deletedAt: null },
+    select: { id: true },
+  });
+  for (const sub of subFolders) {
+    count += await countAllFiles(sub.id);
+  }
+  return count;
+}
+
+/** Recursively count all sub-folders inside a folder */
+async function countAllSubFolders(folderId: string): Promise<number> {
+  let count = 0;
+  const subFolders = await db.folder.findMany({
+    where: { parentId: folderId, deletedAt: null },
+    select: { id: true },
+  });
+  count += subFolders.length;
+  for (const sub of subFolders) {
+    count += await countAllSubFolders(sub.id);
+  }
+  return count;
+}
+
 /**
  * GET /api/folders
  * List folders (requires login)
@@ -35,7 +66,24 @@ export async function GET(request: NextRequest) {
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
 
-    return NextResponse.json(folders);
+    // Add recursive file count for each folder
+    const foldersWithCounts = await Promise.all(
+      folders.map(async (folder) => {
+        const totalFiles = await countAllFiles(folder.id);
+        const totalSubFolders = await countAllSubFolders(folder.id);
+        return {
+          ...folder,
+          _count: {
+            files: folder._count.files,
+            children: folder._count.children,
+            totalFiles,
+            totalSubFolders,
+          },
+        };
+      })
+    );
+
+    return NextResponse.json(foldersWithCounts);
   } catch (error) {
     console.error("List folders error:", error);
     return NextResponse.json(
