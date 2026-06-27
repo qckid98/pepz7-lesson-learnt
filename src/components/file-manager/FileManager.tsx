@@ -220,40 +220,60 @@ export default function FileManager() {
     } catch { /* ignore */ }
   };
 
-  // ===== Core upload single file =====
+  // ===== Core upload single file (with retry) =====
   const uploadSingleFile = async (file: File, folderId: string | null, uploadId: string) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("folderId", folderId || "");
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/files/upload-direct");
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const progress = Math.round((event.loaded / event.total) * 100);
-            setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress } : u));
-          }
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress: 100, status: "done" } : u));
-            resolve();
-          } else {
-            let errMsg = "Upload gagal";
-            try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch {}
-            setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: errMsg } : u));
-            reject(new Error(errMsg));
-          }
-        };
-        xhr.onerror = () => {
-          setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: "Network error" } : u));
-          reject(new Error("Network error"));
-        };
-        xhr.send(formData);
-      });
-    } catch (e) {
-      console.error("Upload error:", e);
+    const maxRetries = 2;
+    let lastError = "";
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folderId", folderId || "");
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/files/upload-direct");
+          xhr.timeout = 120000; // 2 min timeout per file
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const progress = Math.round((event.loaded / event.total) * 100);
+              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress } : u));
+            }
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress: 100, status: "done" } : u));
+              resolve();
+            } else {
+              let errMsg = "Upload gagal";
+              try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch {}
+              lastError = errMsg;
+              reject(new Error(errMsg));
+            }
+          };
+          xhr.onerror = () => {
+            lastError = "Network error";
+            reject(new Error("Network error"));
+          };
+          xhr.ontimeout = () => {
+            lastError = "Timeout";
+            reject(new Error("Timeout"));
+          };
+          xhr.send(formData);
+        });
+        return; // Success, exit retry loop
+      } catch (e) {
+        if (attempt < maxRetries) {
+          // Wait 1s before retry
+          await new Promise(r => setTimeout(r, 1000));
+          // Reset progress for retry
+          setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress: 0, status: "uploading" } : u));
+        } else {
+          // All retries failed
+          setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: lastError } : u));
+        }
+      }
     }
   };
 
