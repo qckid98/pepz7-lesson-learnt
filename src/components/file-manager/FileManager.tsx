@@ -80,6 +80,7 @@ export default function FileManager() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ files: any[]; folders: any[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // ===== Fetch data =====
   const fetchData = useCallback(async () => {
@@ -260,9 +261,9 @@ export default function FileManager() {
       }
     }
     fetchData();
-    // Auto-clear completed uploads after 3 seconds
+    // Auto-clear only successful uploads after 3 seconds — keep errors visible
     setTimeout(() => {
-      setUploads((prev) => prev.filter((u) => u.status === "uploading"));
+      setUploads((prev) => prev.filter((u) => u.status !== "done"));
     }, 3000);
   };
 
@@ -360,8 +361,9 @@ export default function FileManager() {
       }
     }
     fetchData();
+    // Auto-clear only successful uploads after 3 seconds — keep errors visible
     setTimeout(() => {
-      setUploads((prev) => prev.filter((u) => u.status === "uploading"));
+      setUploads((prev) => prev.filter((u) => u.status !== "done"));
     }, 3000);
   };
 
@@ -389,12 +391,14 @@ export default function FileManager() {
       ? `Pindahkan ${fileIds.length + folderIds.length} item ke tempat sampah? Folder beserta semua isinya akan dipindahkan.`
       : `Pindahkan ${fileIds.length} file ke tempat sampah?`;
     if (!confirm(confirmMsg)) return;
+    setDeleteLoading(true);
     await fetch("/api/files/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "trash", fileIds, folderIds }),
     });
     store.clearSelection();
+    setDeleteLoading(false);
     fetchData();
   };
 
@@ -777,6 +781,16 @@ export default function FileManager() {
         }}
       />
 
+      {/* Delete loading overlay */}
+      {deleteLoading && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl p-8 shadow-lg flex flex-col items-center">
+            <div className="w-10 h-10 border-3 border-gray-200 border-t-red-500 rounded-full animate-spin mb-3" />
+            <p className="text-gray-700 font-medium">Menghapus...</p>
+          </div>
+        </div>
+      )}
+
       {/* Drag overlay */}
       {isDragOverPage && (
         <div className="fixed inset-0 bg-blue-50/80 flex items-center justify-center z-50 pointer-events-none">
@@ -796,7 +810,7 @@ export default function FileManager() {
               Upload ({uploads.filter((u) => u.status === "done").length}/{uploads.length})
             </h3>
             <button
-              onClick={() => setUploads((prev) => prev.filter((u) => u.status === "uploading"))}
+              onClick={() => setUploads((prev) => prev.filter((u) => u.status !== "done"))}
               className="text-gray-400 hover:text-gray-600 text-xs"
             >
               {uploads.every((u) => u.status !== "uploading") ? "Tutup" : ""}
