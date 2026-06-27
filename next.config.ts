@@ -2,9 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  // Remove experimental.serverActions.bodySizeLimit — Next.js 16 internal proxy
-  // corrupts multipart body for large uploads when this is set.
-  // Nginx handles body size limit (client_max_body_size 1g).
+  // Next.js 16 internal proxy default limit is 1MB — must set explicitly
+  // for large file uploads via FormData/Route Handlers
+  // Without this, files > 1MB get "Chunk Header in chunk body not in expected format"
+  experimental: {
+    proxyClientMaxBodySize: "250mb",
+  },
   // @silurus/ooxml uses ESM-only imports and Web Workers
   transpilePackages: ["@silurus/ooxml"],
   images: {
