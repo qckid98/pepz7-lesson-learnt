@@ -4,6 +4,35 @@ import { db } from "@/lib/db";
 import { updateFolderSchema } from "@/lib/validators";
 import { getPreviewPresignedUrl } from "@/lib/s3";
 
+/** Recursively count all files inside a folder (including sub-folders) */
+async function countAllFiles(folderId: string): Promise<number> {
+  let count = 0;
+  const directFiles = await db.file.count({ where: { folderId, deletedAt: null } });
+  count += directFiles;
+  const subFolders = await db.folder.findMany({
+    where: { parentId: folderId, deletedAt: null },
+    select: { id: true },
+  });
+  for (const sub of subFolders) {
+    count += await countAllFiles(sub.id);
+  }
+  return count;
+}
+
+/** Recursively count all sub-folders inside a folder */
+async function countAllSubFolders(folderId: string): Promise<number> {
+  let count = 0;
+  const subFolders = await db.folder.findMany({
+    where: { parentId: folderId, deletedAt: null },
+    select: { id: true },
+  });
+  count += subFolders.length;
+  for (const sub of subFolders) {
+    count += await countAllSubFolders(sub.id);
+  }
+  return count;
+}
+
 /**
  * GET /api/folders/[id]
  * Get folder details with files
@@ -66,9 +95,35 @@ export async function GET(
       })
     );
 
+    // Add recursive file count to each child folder
+    const childrenWithCounts = await Promise.all(
+      folder.children.map(async (child) => {
+        const totalFiles = await countAllFiles(child.id);
+        const totalSubFolders = await countAllSubFolders(child.id);
+        return {
+          ...child,
+          _count: {
+            ...child._count,
+            totalFiles,
+            totalSubFolders,
+          },
+        };
+      })
+    );
+
+    // Add recursive count to parent folder itself
+    const parentTotalFiles = await countAllFiles(folder.id);
+    const parentTotalSubFolders = await countAllSubFolders(folder.id);
+
     return NextResponse.json({
       ...folder,
       files: filesWithStringSize,
+      children: childrenWithCounts,
+      _count: {
+        ...folder._count,
+        totalFiles: parentTotalFiles,
+        totalSubFolders: parentTotalSubFolders,
+      },
     });
   } catch (error) {
     console.error("Get folder error:", error);
