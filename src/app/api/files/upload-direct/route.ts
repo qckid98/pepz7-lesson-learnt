@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { s3Client, generateS3Key } from "@/lib/s3";
+import { s3Client, generateS3Key, getUploadPresignedUrl } from "@/lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { isFileTypeAllowed, getFileExtension, MAX_UPLOAD_SIZE } from "@/lib/validators";
 import { Readable } from "stream";
 
 export const runtime = "nodejs";
-export const maxDuration = 600; // 10 minutes for large uploads
+export const maxDuration = 600;
 export const dynamic = "force-dynamic";
 
-// MIME type fallback from extension
 const EXT_TO_MIME: Record<string, string> = {
   pdf: "application/pdf",
   doc: "application/msword",
@@ -39,17 +38,18 @@ const EXT_TO_MIME: Record<string, string> = {
 };
 
 function getMimeType(filename: string, providedType: string): string {
-  if (providedType && providedType !== "application/octet-stream") {
-    return providedType;
-  }
+  if (providedType && providedType !== "application/octet-stream") return providedType;
   const ext = filename.split(".").pop()?.toLowerCase() || "";
   return EXT_TO_MIME[ext] || "application/octet-stream";
 }
 
+/** Threshold: files larger than this use presigned URL (bypass proxy) */
+const PRESIGNED_URL_THRESHOLD = 10 * 1024 * 1024; // 10MB
+
 /**
  * POST /api/files/upload-direct
- * Upload file via server proxy — streams to S3 to avoid memory issues
- * Uses file.stream() → S3 PutObjectCommand Body (stream, not buffer)
+ * For files < 10MB: stream through server to S3
+ * For files >= 10MB: return presigned URL, client uploads directly to S3
  */
 export async function POST(request: NextRequest) {
   try {
@@ -66,47 +66,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    const fileName = file.name.replace(/^.*\//, "").trim(); // Strip path, trim whitespace
+    const fileName = file.name.replace(/^.*\//, "").trim();
     let fileType = file.type || "";
-
-    if (!fileType) {
-      fileType = getMimeType(fileName, "");
-    }
-
+    if (!fileType) fileType = getMimeType(fileName, "");
     const fileSize = file.size;
 
-    // Validate file type
     if (!isFileTypeAllowed(fileType)) {
-      return NextResponse.json(
-        { error: `File type "${fileType}" not allowed` },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: `File type "${fileType}" not allowed` }, { status: 400 });
     }
 
-    // Validate file size (200MB max)
     if (fileSize > MAX_UPLOAD_SIZE) {
-      return NextResponse.json(
-        { error: `File too large. Max ${MAX_UPLOAD_SIZE / 1024 / 1024}MB` },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: `File too large. Max ${MAX_UPLOAD_SIZE / 1024 / 1024}MB` }, { status: 400 });
     }
 
-    // If folderId provided, verify folder exists
     if (folderId) {
       const folder = await db.folder.findUnique({ where: { id: folderId } });
-      if (!folder) {
-        return NextResponse.json({ error: "Folder not found" }, { status: 404 });
-      }
+      if (!folder) return NextResponse.json({ error: "Folder not found" }, { status: 404 });
     }
 
-    // Generate S3 key
     const s3Key = generateS3Key(fileName, folderId || undefined);
 
-    // Stream file to S3 — avoids loading entire file into memory
-    // file.stream() returns a ReadableStream (Web API)
-    // Convert to Node.js Readable for AWS SDK
+    // Stream upload to S3
     const nodeStream = Readable.fromWeb(file.stream() as import("stream/web").ReadableStream);
-
     const command = new PutObjectCommand({
       Bucket: process.env.S3_BUCKET || "file-sharing-prod",
       Key: s3Key,
@@ -114,7 +95,6 @@ export async function POST(request: NextRequest) {
       ContentType: fileType,
       ContentLength: fileSize,
     });
-
     await s3Client.send(command);
 
     // Create file record in database
@@ -141,5 +121,54 @@ export async function POST(request: NextRequest) {
     console.error("Upload-direct error:", error);
     const message = error instanceof Error ? error.message : "Internal server error";
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/**
+ * POST /api/files/upload-direct?presigned=true
+ * Returns presigned URL for direct browser→S3 upload (for large files)
+ * Body: { fileName, fileType, fileSize, folderId }
+ */
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user || session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { fileName, fileType, fileSize, folderId } = body;
+
+    if (!fileName || !fileSize) {
+      return NextResponse.json({ error: "fileName and fileSize required" }, { status: 400 });
+    }
+
+    let mime = fileType || "";
+    if (!mime) mime = getMimeType(fileName, "");
+
+    if (!isFileTypeAllowed(mime)) {
+      return NextResponse.json({ error: `File type not allowed` }, { status: 400 });
+    }
+
+    if (fileSize > MAX_UPLOAD_SIZE) {
+      return NextResponse.json({ error: `File too large` }, { status: 400 });
+    }
+
+    if (folderId) {
+      const folder = await db.folder.findUnique({ where: { id: folderId } });
+      if (!folder) return NextResponse.json({ error: "Folder not found" }, { status: 404 });
+    }
+
+    const s3Key = generateS3Key(fileName, folderId || undefined);
+    const presignedUrl = await getUploadPresignedUrl(s3Key, mime, fileSize, 900);
+
+    return NextResponse.json({
+      presignedUrl,
+      s3Key,
+      fileId: null, // Will be created after upload confirms
+    });
+  } catch (error) {
+    console.error("Presigned URL error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
