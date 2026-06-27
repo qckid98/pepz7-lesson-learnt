@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    const fileName = file.name;
+    const fileName = file.name.replace(/^.*\//, ""); // Strip any path prefix, keep only filename
     let fileType = file.type || "";
 
     if (!fileType) {

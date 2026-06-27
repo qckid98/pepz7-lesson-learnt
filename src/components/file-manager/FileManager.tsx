@@ -512,11 +512,6 @@ export default function FileManager() {
             return new Promise((resolve) => {
               if (entry.isFile) {
                 (entry as FileSystemFileEntry).file((file: File) => {
-                  // Set webkitRelativePath manually since we're traversing
-                  Object.defineProperty(file, "webkitRelativePath", {
-                    value: path + file.name,
-                    writable: false,
-                  });
                   droppedFiles.push(file);
                   resolve();
                 }, () => resolve());
