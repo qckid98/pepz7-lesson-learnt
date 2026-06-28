@@ -550,6 +550,7 @@ export default function FileManager() {
   const handleDragStart = (e: React.DragEvent, id: string, type: "file" | "folder") => {
     const ids = store.selectedIds.has(id) ? Array.from(store.selectedIds) : [id];
     dragDataRef.current = { type, ids };
+    (window as any).__dragData = { type, ids }; // Also store globally for sidebar drop
     e.dataTransfer.effectAllowed = "move";
   };
 
@@ -712,6 +713,29 @@ export default function FileManager() {
             <span className="font-medium text-blue-700">{selectedCount} dipilih</span>
             {store.viewMode !== "trash" && (
               <>
+                <button
+                  onClick={() => {
+                    const fIds = Array.from(store.selectedIds).filter(id => store.files.some(f => f.id === id));
+                    const flIds = Array.from(store.selectedIds).filter(id => store.folders.some(f => f.id === id));
+                    if (fIds.length + flIds.length === 0) return;
+                    // Trigger ZIP download
+                    fetch("/api/files/bulk-download", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ fileIds: fIds, folderIds: flIds }),
+                    }).then(res => res.blob()).then(blob => {
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "download.zip";
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }).catch(e => console.error("ZIP download error:", e));
+                  }}
+                  className="text-blue-600 hover:underline"
+                >
+                  Download ZIP
+                </button>
                 <button
                   onClick={() => handleTrash(
                     Array.from(store.selectedIds).filter(id => store.files.some(f => f.id === id)),
@@ -1037,12 +1061,16 @@ function Sidebar({ onNavigate, onRefresh, open, onClose }: { onNavigate: (id: st
   function renderTreeNodes(nodes: TreeNode[], depth = 0) {
     return nodes.map((node) => {
       const isActive = store.currentFolderId === node.id && store.viewMode === "all";
+      const isDragOver = store.dragOverFolderId === node.id;
       return (
         <div key={node.id}>
           <button
             onClick={() => { onNavigate(node.id); onRefresh(); }}
+            onDragOver={(e) => { e.preventDefault(); store.setDragOverFolderId(node.id); }}
+            onDragLeave={() => store.setDragOverFolderId(null)}
+            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); store.setDragOverFolderId(null); const dd = (window as any).__dragData; if (dd) { const fIds = dd.type === "file" ? dd.ids : []; const flIds = dd.type === "folder" ? dd.ids : []; fetch("/api/files/move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileIds: fIds, targetFolderId: node.id }) }).then(() => onRefresh()); flIds.forEach((fid: string) => fetch("/api/folders/move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ folderId: fid, targetParentId: node.id }) })); (window as any).__dragData = null; } }}
             className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-sm transition ${
-              isActive ? "bg-blue-100 text-blue-700 font-medium" : "text-gray-600 hover:bg-gray-100"
+              isDragOver ? "bg-blue-200 text-blue-800 ring-2 ring-blue-400" : isActive ? "bg-blue-100 text-blue-700 font-medium" : "text-gray-600 hover:bg-gray-100"
             }`}
             style={{ paddingLeft: `${8 + depth * 16}px` }}
           >
