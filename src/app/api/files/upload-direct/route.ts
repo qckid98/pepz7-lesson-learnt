@@ -97,6 +97,25 @@ export async function POST(request: NextRequest) {
     });
     await s3Client.send(command);
 
+    // Check if file with same name already exists in this folder
+    // If yes, delete the old one (overwrite behavior)
+    const existingFile = await db.file.findFirst({
+      where: { name: fileName, folderId: folderId || null, deletedAt: null },
+      select: { id: true, s3Key: true },
+    });
+
+    if (existingFile) {
+      // Delete old file from S3
+      try {
+        const { deleteFile } = await import("@/lib/s3");
+        await deleteFile(existingFile.s3Key);
+      } catch (e) {
+        console.error("Old file S3 delete error:", e);
+      }
+      // Delete old file from DB
+      await db.file.delete({ where: { id: existingFile.id } });
+    }
+
     // Create file record in database
     const fileRecord = await db.file.create({
       data: {

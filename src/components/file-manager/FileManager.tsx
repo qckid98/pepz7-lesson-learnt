@@ -333,7 +333,7 @@ export default function FileManager() {
   // ===== Check existing files and resolve conflicts =====
   const checkAndUpload = async (fileArray: File[], folderId: string | null) => {
     // Check which files already exist
-    const fileNames = fileArray.map((f) => f.name.replace(/^.*\//, ""));
+    const fileNames = fileArray.map((f) => f.name.replace(/^.*\//, "").trim());
     let existingNames: string[] = [];
     try {
       const res = await fetch("/api/files/check-existing", {
@@ -347,27 +347,27 @@ export default function FileManager() {
       }
     } catch { /* ignore */ }
 
-    // Filter out files that conflict
     let filesToUpload: File[] = [];
-    let skipAllSame = false;
 
     if (existingNames.length > 0) {
       // Show conflict dialog
-      const conflictFiles = fileArray.filter((f) => existingNames.includes(f.name.replace(/^.*\//, "")));
-      const nonConflictFiles = fileArray.filter((f) => !existingNames.includes(f.name.replace(/^.*\//, "")));
+      const conflictFiles = fileArray.filter((f) => existingNames.includes(f.name.replace(/^.*\//, "").trim()));
+      const nonConflictFiles = fileArray.filter((f) => !existingNames.includes(f.name.replace(/^.*\//, "").trim()));
 
       // Upload non-conflicting files immediately
-      const newUploads = nonConflictFiles.map((file, i) => ({
-        id: `${Date.now()}-${i}`,
-        name: file.name.replace(/^.*\//, ""),
-        size: file.size,
-        progress: 0,
-        status: "uploading" as const,
-      }));
-      setUploads((prev) => [...prev, ...newUploads]);
+      if (nonConflictFiles.length > 0) {
+        const newUploads = nonConflictFiles.map((file, i) => ({
+          id: `${Date.now()}-${i}`,
+          name: file.name.replace(/^.*\//, "").trim(),
+          size: file.size,
+          progress: 0,
+          status: "uploading" as const,
+        }));
+        setUploads((prev) => [...prev, ...newUploads]);
 
-      for (let i = 0; i < nonConflictFiles.length; i++) {
-        await uploadSingleFile(nonConflictFiles[i], folderId, newUploads[i].id);
+        for (let i = 0; i < nonConflictFiles.length; i++) {
+          await uploadSingleFile(nonConflictFiles[i], folderId, newUploads[i].id);
+        }
       }
 
       // Show conflict dialog for conflicting files
@@ -382,23 +382,23 @@ export default function FileManager() {
           resolvedFiles: [],
         });
 
-        // Store resolve function for dialog to call
         (window as any).__resolveConflict = (result: File[]) => {
           setConflictDialog(null);
           resolve(result);
         };
       });
-
-      skipAllSame = true; // If we get here, dialog was resolved
     } else {
       filesToUpload = fileArray;
     }
 
-    // Upload resolved files
+    // Upload resolved files (includes overwrite files)
     if (filesToUpload.length > 0) {
+      // For overwrite: delete existing files first, then upload
+      // Upload API creates new file record — old one stays as duplicate
+      // But check-existing already filtered, so these are either new or overwrite
       const moreUploads = filesToUpload.map((file, i) => ({
         id: `${Date.now()}-r${i}`,
-        name: file.name.replace(/^.*\//, ""),
+        name: file.name.replace(/^.*\//, "").trim(),
         size: file.size,
         progress: 0,
         status: "uploading" as const,
@@ -445,15 +445,30 @@ export default function FileManager() {
         }
 
         try {
+          // Try to create folder
           const res = await fetch("/api/folders", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name: part, parentId: parentId || null, visibility: "PUBLIC" }),
           });
+
           if (res.ok) {
+            // Folder created successfully
             const data = await res.json();
             folderCache.set(currentPath, data.id);
             parentId = data.id;
+          } else if (res.status === 409) {
+            // Folder already exists — find it and use its ID
+            // Fetch children of current parent to find existing folder
+            const listRes = await fetch(`/api/folders?parentId=${parentId || ""}`);
+            if (listRes.ok) {
+              const folders = await listRes.json();
+              const existing = folders.find((f: { name: string }) => f.name === part);
+              if (existing) {
+                folderCache.set(currentPath, existing.id);
+                parentId = existing.id;
+              }
+            }
           }
         } catch (e) {
           console.error("Folder create error:", e);
@@ -462,7 +477,7 @@ export default function FileManager() {
       return parentId;
     }
 
-    // Group files by their target folder, then check conflicts per folder
+    // Group files by their target folder
     const filesByFolder = new Map<string, File[]>();
 
     for (const file of fileArray) {
@@ -475,7 +490,7 @@ export default function FileManager() {
       filesByFolder.get(targetFolderId)!.push(file);
     }
 
-    // Upload each group with conflict checking
+    // Upload each group with conflict checking (includes overwrite support)
     for (const [folderId, files] of filesByFolder) {
       await checkAndUpload(files, folderId);
     }

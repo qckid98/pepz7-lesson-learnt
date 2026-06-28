@@ -37,6 +37,22 @@ export async function POST(request: NextRequest) {
       if (!folder) return NextResponse.json({ error: "Folder not found" }, { status: 404 });
     }
 
+    // Check if file with same name already exists (overwrite)
+    const existingFile = await db.file.findFirst({
+      where: { name: fileName, folderId: folderId || null, deletedAt: null },
+      select: { id: true, s3Key: true },
+    });
+
+    if (existingFile) {
+      try {
+        const { deleteFile } = await import("@/lib/s3");
+        await deleteFile(existingFile.s3Key);
+      } catch (e) {
+        console.error("Old file S3 delete error:", e);
+      }
+      await db.file.delete({ where: { id: existingFile.id } });
+    }
+
     // Create file record
     const fileRecord = await db.file.create({
       data: {
