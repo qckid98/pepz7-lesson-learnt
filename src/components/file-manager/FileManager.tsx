@@ -34,6 +34,7 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   SearchIcon,
+  CheckSquareIcon,
 } from "lucide-react";
 
 // ============ Helper: File icon by type ============
@@ -81,6 +82,7 @@ export default function FileManager() {
   const [searchResults, setSearchResults] = useState<{ files: any[]; folders: any[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
   const [conflictDialog, setConflictDialog] = useState<{
     files: File[];
     folderId: string | null;
@@ -576,6 +578,15 @@ export default function FileManager() {
         e.preventDefault();
         setIsDragOverPage(false);
 
+        // Check if this is an internal drag (file/folder move), not external file drop
+        const dragData = (window as any).__dragData;
+        if (dragData) {
+          // Internal drag — don't trigger upload, let folder drop handlers deal with it
+          (window as any).__dragData = null;
+          return;
+        }
+
+        // External file drop — handle upload
         const items = e.dataTransfer.items;
         const droppedFiles: File[] = [];
 
@@ -661,6 +672,8 @@ export default function FileManager() {
           searchQuery={searchQuery}
           onSearchChange={handleSearch}
           searchLoading={searchLoading}
+          selectMode={selectMode}
+          onToggleSelectMode={() => { setSelectMode(!selectMode); if (selectMode) store.clearSelection(); }}
         />
 
         {/* Breadcrumb */}
@@ -818,7 +831,7 @@ export default function FileManager() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="w-10 px-4 py-2"><input type="checkbox" checked={allIds.length > 0 && allIds.every((id) => store.selectedIds.has(id))} onChange={(e) => e.target.checked ? store.selectAll(allIds) : store.clearSelection()} className="rounded" /></th>
+                    {selectMode && <th className="w-10 px-4 py-2"><input type="checkbox" checked={allIds.length > 0 && allIds.every((id) => store.selectedIds.has(id))} onChange={(e) => e.target.checked ? store.selectAll(allIds) : store.clearSelection()} className="rounded" /></th>}
                     <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer w-full" onClick={() => store.setSort("name")}>Nama</th>
                     <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell whitespace-nowrap">Tipe</th>
                     <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer hidden md:table-cell whitespace-nowrap" onClick={() => store.setSort("size")}>Ukuran</th>
@@ -833,6 +846,7 @@ export default function FileManager() {
                       item={item}
                       selected={store.selectedIds.has(item.id)}
                       renaming={store.renamingId === item.id}
+                      selectMode={selectMode}
                       onSelect={(e) => handleSelect(e, item.id)}
                       onToggleSelect={() => store.toggleSelect(item.id)}
                       onOpen={() => item._isFolder ? handleNavigate(item.id) : setPreviewFileId(item.id)}
@@ -1130,6 +1144,8 @@ function Toolbar(props: {
   searchQuery?: string;
   onSearchChange?: (q: string) => void;
   searchLoading?: boolean;
+  selectMode?: boolean;
+  onToggleSelectMode?: () => void;
 }) {
   return (
     <div className="flex items-center gap-2 px-3 sm:px-6 py-3 border-b border-gray-100">
@@ -1151,6 +1167,19 @@ function Toolbar(props: {
           <button onClick={props.onNewFolder} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg hover:bg-gray-50 transition">
             <PlusIcon className="w-4 h-4" /> <span className="hidden sm:inline">Folder Baru</span>
           </button>
+          {/* Select mode toggle — for bulk ZIP download */}
+          {props.onToggleSelectMode && (
+            <button
+              onClick={props.onToggleSelectMode}
+              className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-lg transition ${
+                props.selectMode
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "border border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <CheckSquareIcon className="w-4 h-4" /> <span className="hidden sm:inline">{props.selectMode ? "Selesai" : "Pilih"}</span>
+            </button>
+          )}
         </>
       )}
       {/* Search bar — full DB search */}
@@ -1284,6 +1313,7 @@ function ListRow(props: {
   item: FileItem | FolderItem & { _isFolder: boolean };
   selected: boolean;
   renaming: boolean;
+  selectMode: boolean;
   onSelect: (e: React.MouseEvent) => void;
   onToggleSelect: () => void;
   onOpen: () => void;
@@ -1311,7 +1341,7 @@ function ListRow(props: {
       onContextMenu={props.onContextMenu}
       className={`cursor-pointer transition ${props.dragOver ? "bg-blue-100" : props.selected ? "bg-blue-50" : "hover:bg-gray-50"}`}
     >
-      <td className="px-4 py-2.5"><input type="checkbox" checked={props.selected} onChange={() => props.onToggleSelect()} onClick={(e) => e.stopPropagation()} className="rounded" /></td>
+      <td className="px-4 py-2.5">{props.selectMode && <input type="checkbox" checked={props.selected} onChange={() => props.onToggleSelect()} onClick={(e) => e.stopPropagation()} className="rounded" />}</td>
       <td className="px-2 py-2.5 max-w-0">
         <div className="flex items-center gap-2 overflow-hidden">
           {isFolder ? (
