@@ -3,8 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { s3Client } from "@/lib/s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-// @ts-expect-error — archiver default export works at runtime
-import archiver from "archiver";
+import * as archiver from "archiver";
 import { Readable, PassThrough } from "stream";
 
 export const runtime = "nodejs";
@@ -84,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     // Create ZIP stream
     const passthrough = new PassThrough();
-    const archive = (archiver as any)("zip", { zlib: { level: 5 } });
+    const archive = (archiver as any).create("zip", { zlib: { level: 5 } });
     archive.pipe(passthrough);
 
     // Add files to ZIP
