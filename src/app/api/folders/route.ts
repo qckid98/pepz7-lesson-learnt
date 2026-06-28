@@ -4,34 +4,42 @@ import { db } from "@/lib/db";
 import { createFolderSchema } from "@/lib/validators";
 
 /** Recursively count all files inside a folder (including sub-folders) */
-async function countAllFiles(folderId: string): Promise<number> {
-  let count = 0;
-  // Count direct files
-  const directFiles = await db.file.count({ where: { folderId, deletedAt: null } });
-  count += directFiles;
-  // Recurse into sub-folders
-  const subFolders = await db.folder.findMany({
-    where: { parentId: folderId, deletedAt: null },
-    select: { id: true },
-  });
-  for (const sub of subFolders) {
-    count += await countAllFiles(sub.id);
+async function countAllFiles(folderId: string, depth = 0): Promise<number> {
+  if (depth > 10) return 0; // Prevent infinite recursion
+  try {
+    let count = 0;
+    const directFiles = await db.file.count({ where: { folderId, deletedAt: null } });
+    count += directFiles;
+    const subFolders = await db.folder.findMany({
+      where: { parentId: folderId, deletedAt: null },
+      select: { id: true },
+    });
+    for (const sub of subFolders) {
+      count += await countAllFiles(sub.id, depth + 1);
+    }
+    return count;
+  } catch {
+    return 0;
   }
-  return count;
 }
 
 /** Recursively count all sub-folders inside a folder */
-async function countAllSubFolders(folderId: string): Promise<number> {
-  let count = 0;
-  const subFolders = await db.folder.findMany({
-    where: { parentId: folderId, deletedAt: null },
-    select: { id: true },
-  });
-  count += subFolders.length;
-  for (const sub of subFolders) {
-    count += await countAllSubFolders(sub.id);
+async function countAllSubFolders(folderId: string, depth = 0): Promise<number> {
+  if (depth > 10) return 0;
+  try {
+    let count = 0;
+    const subFolders = await db.folder.findMany({
+      where: { parentId: folderId, deletedAt: null },
+      select: { id: true },
+    });
+    count += subFolders.length;
+    for (const sub of subFolders) {
+      count += await countAllSubFolders(sub.id, depth + 1);
+    }
+    return count;
+  } catch {
+    return 0;
   }
-  return count;
 }
 
 /**
@@ -55,7 +63,6 @@ export async function GET(request: NextRequest) {
       where: {
         deletedAt: null,
         ...(fetchAll ? {} : { parentId: parentId || null }),
-        // Viewers can only see PUBLIC folders
         ...(!isAdmin ? { visibility: "PUBLIC" } : {}),
       },
       include: {
@@ -66,20 +73,24 @@ export async function GET(request: NextRequest) {
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
 
-    // Add recursive file count for each folder
+    // Add recursive file count — wrapped in try-catch to prevent 500
     const foldersWithCounts = await Promise.all(
       folders.map(async (folder) => {
-        const totalFiles = await countAllFiles(folder.id);
-        const totalSubFolders = await countAllSubFolders(folder.id);
-        return {
-          ...folder,
-          _count: {
-            files: folder._count.files,
-            children: folder._count.children,
-            totalFiles,
-            totalSubFolders,
-          },
-        };
+        try {
+          const totalFiles = await countAllFiles(folder.id);
+          const totalSubFolders = await countAllSubFolders(folder.id);
+          return {
+            ...folder,
+            _count: {
+              files: folder._count?.files || 0,
+              children: folder._count?.children || 0,
+              totalFiles,
+              totalSubFolders,
+            },
+          };
+        } catch {
+          return folder;
+        }
       })
     );
 
@@ -116,9 +127,8 @@ export async function POST(request: NextRequest) {
 
     const { name, parentId, visibility } = parsed.data;
 
-    // Check if folder with same name exists in same parent
     const existing = await db.folder.findFirst({
-      where: { name, parentId: parentId || null },
+      where: { name, parentId: parentId || null, deletedAt: null },
     });
 
     if (existing) {
