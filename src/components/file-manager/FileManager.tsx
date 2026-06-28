@@ -222,103 +222,44 @@ export default function FileManager() {
 
   // ===== Core upload single file (with retry) =====
   // Files >= 10MB: use presigned URL (bypass Next.js proxy)
-  // Files < 10MB: stream through server
+  // All files: stream through server (proxyClientMaxBodySize: 250mb handles large files)
   const uploadSingleFile = async (file: File, folderId: string | null, uploadId: string) => {
     const maxRetries = 2;
     let lastError = "";
-    const LARGE_FILE_THRESHOLD = 10 * 1024 * 1024; // 10MB
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        if (file.size >= LARGE_FILE_THRESHOLD) {
-          // === Large file: presigned URL upload ===
-          // Step 1: Get presigned URL from server
-          const presignedRes = await fetch("/api/files/upload-direct", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              fileName: file.name.replace(/^.*\//, "").trim(),
-              fileType: file.type || "",
-              fileSize: file.size,
-              folderId: folderId || null,
-            }),
-          });
+        // All files: stream through server (proxyClientMaxBodySize: 250mb)
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("folderId", folderId || "");
 
-          if (!presignedRes.ok) throw new Error("Failed to get upload URL");
-          const { presignedUrl, s3Key } = await presignedRes.json();
-
-          // Step 2: Upload directly to S3
-          await new Promise<void>((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open("PUT", presignedUrl);
-            xhr.timeout = 300000; // 5 min for large files
-            xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-
-            xhr.upload.onprogress = (event) => {
-              if (event.lengthComputable) {
-                const progress = Math.round((event.loaded / event.total) * 100);
-                setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress } : u));
-              }
-            };
-            xhr.onload = () => {
-              if (xhr.status >= 200 && xhr.status < 300) resolve();
-              else { lastError = `S3 upload failed: ${xhr.status}`; reject(new Error(lastError)); }
-            };
-            xhr.onerror = () => { lastError = "Network error"; reject(new Error(lastError)); };
-            xhr.ontimeout = () => { lastError = "Timeout"; reject(new Error(lastError)); };
-            xhr.send(file);
-          });
-
-          // Step 3: Confirm upload + create DB record
-          const confirmRes = await fetch("/api/files/upload-confirm", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              fileName: file.name.replace(/^.*\//, "").trim(),
-              fileType: file.type || "",
-              fileSize: file.size,
-              s3Key,
-              folderId: folderId || null,
-            }),
-          });
-
-          if (!confirmRes.ok) throw new Error("Failed to confirm upload");
-          setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress: 100, status: "done" } : u));
-          return;
-
-        } else {
-          // === Small file: stream through server ===
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("folderId", folderId || "");
-
-          await new Promise<void>((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open("POST", "/api/files/upload-direct");
-            xhr.timeout = 120000;
-            xhr.upload.onprogress = (event) => {
-              if (event.lengthComputable) {
-                const progress = Math.round((event.loaded / event.total) * 100);
-                setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress } : u));
-              }
-            };
-            xhr.onload = () => {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress: 100, status: "done" } : u));
-                resolve();
-              } else {
-                let errMsg = "Upload gagal";
-                try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch {}
-                lastError = errMsg;
-                reject(new Error(errMsg));
-              }
-            };
-            xhr.onerror = () => { lastError = "Network error"; reject(new Error(lastError)); };
-            xhr.ontimeout = () => { lastError = "Timeout"; reject(new Error(lastError)); };
-            xhr.send(formData);
-          });
-          return; // Success
-        }
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/files/upload-direct");
+          xhr.timeout = 300000; // 5 min timeout
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const progress = Math.round((event.loaded / event.total) * 100);
+              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress } : u));
+            }
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress: 100, status: "done" } : u));
+              resolve();
+            } else {
+              let errMsg = "Upload gagal";
+              try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch {}
+              lastError = errMsg;
+              reject(new Error(errMsg));
+            }
+          };
+          xhr.onerror = () => { lastError = "Network error"; reject(new Error(lastError)); };
+          xhr.ontimeout = () => { lastError = "Timeout"; reject(new Error(lastError)); };
+          xhr.send(formData);
+        });
+        return; // Success
       } catch (e) {
         if (attempt < maxRetries) {
           await new Promise(r => setTimeout(r, 1000));
