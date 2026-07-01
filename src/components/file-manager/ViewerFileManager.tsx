@@ -91,7 +91,7 @@ export default function ViewerFileManager() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [allFolders, setAllFolders] = useState<FolderItem[]>([]);
-  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([{ id: null, name: "My Files" }]);
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([{ id: null, name: "Shared Files" }]);
   const [loading, setLoading] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; id: string; name: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -167,7 +167,7 @@ export default function ViewerFileManager() {
       return;
     }
     if (!currentFolderId) {
-      setBreadcrumbs([{ id: null, name: "My Files" }]);
+      setBreadcrumbs([{ id: null, name: "Shared Files" }]);
       return;
     }
     (async () => {
@@ -181,7 +181,7 @@ export default function ViewerFileManager() {
           crumbs.unshift({ id: f.id, name: f.name });
           currentId = f.parentId;
         }
-        crumbs.unshift({ id: null, name: "My Files" });
+        crumbs.unshift({ id: null, name: "Shared Files" });
         setBreadcrumbs(crumbs);
       } catch { /* ignore */ }
     })();
@@ -304,7 +304,7 @@ export default function ViewerFileManager() {
             }`}
           >
             <HomeIcon className="w-4 h-4" />
-            My Files
+            Shared Files
           </button>
           <button
             onClick={() => setViewMode("recent")}
