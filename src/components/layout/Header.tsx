@@ -54,21 +54,21 @@ export default function Header({
             <MenuIcon className="w-5 h-5" />
           </button>
         )}
-        <img src="/logo.png" alt="Logo" className="h-10 w-auto object-contain flex-shrink-0" style={{ filter: theme === 'dark' ? 'invert(1) brightness(0.9)' : 'none' }} />
+        <img src="/logo.png" alt="Logo" className="h-10 w-auto object-contain flex-shrink-0" />
         <h1 className="text-base sm:text-lg font-bold truncate" style={{ color: 'var(--foreground)' }}>{title}</h1>
       </div>
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1 sm:gap-2">
-        {/* Dark mode toggle */}
-        <button
+        {/* Dark mode toggle — disabled until fully implemented */}
+        {/* <button
           onClick={toggleTheme}
-          className="p-1.5 rounded-lg transition hover:bg-gray-100 dark:hover:bg-gray-800"
+          className="p-1.5 rounded-lg transition hover:bg-gray-100"
           aria-label="Toggle theme"
           title={theme === 'light' ? 'Dark mode' : 'Light mode'}
         >
-          {theme === 'light' ? <MoonIcon className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} /> : <SunIcon className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />}
-        </button>
+          {theme === 'light' ? <MoonIcon className="w-4 h-4 text-gray-500" /> : <SunIcon className="w-4 h-4 text-gray-500" />}
+        </button> */}
 
         {showPublicLink && (
           <Link
