@@ -21,17 +21,21 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    // Generate previewUrl for image/video files
+    // Generate previewUrl for image/video/pdf files
     const filesWithPreviews = await Promise.all(
       files.map(async (f) => {
-        const isPreviewable =
-          f.mimeType.startsWith("image/") ||
-          f.mimeType.startsWith("video/") ||
-          f.mimeType === "application/pdf";
-        const previewUrl = isPreviewable
-          ? await getPreviewPresignedUrl(f.s3Key, f.mimeType, 3600)
-          : undefined;
-        return { ...f, size: f.size.toString(), previewUrl };
+        try {
+          const isPreviewable =
+            f.mimeType.startsWith("image/") ||
+            f.mimeType.startsWith("video/") ||
+            f.mimeType === "application/pdf";
+          const previewUrl = isPreviewable
+            ? await getPreviewPresignedUrl(f.s3Key, f.mimeType, 3600)
+            : undefined;
+          return { ...f, size: f.size.toString(), previewUrl };
+        } catch {
+          return { ...f, size: f.size.toString(), previewUrl: undefined };
+        }
       })
     );
 

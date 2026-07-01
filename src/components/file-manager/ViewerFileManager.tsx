@@ -135,10 +135,21 @@ export default function ViewerFileManager() {
             fetch("/api/folders"),
             fetch("/api/files?root=true"),
           ]);
-          const foldersData = await foldersRes.json();
-          const filesData = filesRes.ok ? await filesRes.json() : { files: [] };
-          setFiles(Array.isArray(filesData.files) ? filesData.files : []);
-          setFolders(Array.isArray(foldersData) ? foldersData : []);
+          let foldersData: any[] = [];
+          let filesData: any[] = [];
+          
+          if (foldersRes.ok) {
+            const fd = await foldersRes.json();
+            foldersData = Array.isArray(fd) ? fd : [];
+          }
+          
+          if (filesRes.ok) {
+            const fdata = await filesRes.json();
+            filesData = Array.isArray(fdata.files) ? fdata.files : [];
+          }
+          
+          setFiles(filesData);
+          setFolders(foldersData);
         }
       }
     } catch (e) {
