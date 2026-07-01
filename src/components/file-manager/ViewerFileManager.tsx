@@ -137,8 +137,8 @@ export default function ViewerFileManager() {
           ]);
           const foldersData = await foldersRes.json();
           const filesData = filesRes.ok ? await filesRes.json() : { files: [] };
-          setFiles(filesData.files || []);
-          setFolders(foldersData);
+          setFiles(Array.isArray(filesData.files) ? filesData.files : []);
+          setFolders(Array.isArray(foldersData) ? foldersData : []);
         }
       }
     } catch (e) {
