@@ -1341,7 +1341,9 @@ function ListRow(props: {
       onContextMenu={props.onContextMenu}
       className={`cursor-pointer transition ${props.dragOver ? "bg-blue-100" : props.selected ? "bg-blue-50" : "hover:bg-gray-50"}`}
     >
-      <td className="px-4 py-2.5">{props.selectMode && <input type="checkbox" checked={props.selected} onChange={() => props.onToggleSelect()} onClick={(e) => e.stopPropagation()} className="rounded" />}</td>
+      {props.selectMode && (
+        <td className="px-4 py-2.5"><input type="checkbox" checked={props.selected} onChange={() => props.onToggleSelect()} onClick={(e) => e.stopPropagation()} className="rounded" /></td>
+      )}
       <td className="px-2 py-2.5">
         <div className="flex items-center gap-2 overflow-hidden">
           {isFolder ? (
