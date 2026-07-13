@@ -63,6 +63,7 @@ function getFileTypeTag(mimeType: string, extension: string) {
     case "spreadsheet": color = "bg-emerald-100 text-emerald-700"; break;
     case "presentation": color = "bg-orange-100 text-orange-700"; break;
     case "text": color = "bg-gray-100 text-gray-600"; break;
+    case "archive": color = "bg-amber-100 text-amber-800"; break;
   }
   return { label, color };
 }
