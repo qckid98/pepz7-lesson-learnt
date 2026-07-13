@@ -29,10 +29,15 @@ export const ALLOWED_FILE_TYPES: Record<string, { maxSize: number }> = {
   "audio/mpeg": { maxSize: MAX_FILE_SIZE },
   "audio/wav": { maxSize: MAX_FILE_SIZE },
   "audio/ogg": { maxSize: MAX_FILE_SIZE },
-  // Archives
+  // Archives — all common MIME variants (browser MIME for archives is unreliable)
   "application/zip": { maxSize: MAX_FILE_SIZE },
+  "application/x-zip-compressed": { maxSize: MAX_FILE_SIZE },
   "application/x-rar-compressed": { maxSize: MAX_FILE_SIZE },
+  "application/x-rar": { maxSize: MAX_FILE_SIZE },
+  "application/vnd.rar": { maxSize: MAX_FILE_SIZE },
+  "application/rar": { maxSize: MAX_FILE_SIZE },
   "application/x-7z-compressed": { maxSize: MAX_FILE_SIZE },
+  "application/x-7z": { maxSize: MAX_FILE_SIZE },
 };
 
 export const MAX_UPLOAD_SIZE = MAX_FILE_SIZE;
@@ -101,6 +106,7 @@ export function getFileCategory(mimeType: string, extension?: string): string {
   if (["doc", "docx"].includes(ext)) return "document";
   if (["ppt", "pptx"].includes(ext)) return "presentation";
   if (["txt", "md", "log"].includes(ext)) return "text";
+  if (["zip", "rar", "7z", "gz", "tar", "bz2"].includes(ext)) return "archive";
 
   if (mt.startsWith("image/")) return "image";
   if (mt.startsWith("video/")) return "video";
@@ -110,5 +116,11 @@ export function getFileCategory(mimeType: string, extension?: string): string {
   if (mt.includes("presentation") || mt.includes("powerpoint")) return "presentation";
   if (mt.includes("word") || mt.includes("wordprocessing")) return "document";
   if (mt.startsWith("text/")) return "text";
+  if (mt === "application/zip" || mt === "application/x-zip-compressed" ||
+      mt === "application/x-rar-compressed" || mt === "application/x-rar" ||
+      mt === "application/vnd.rar" || mt === "application/rar" ||
+      mt === "application/x-7z-compressed" || mt === "application/x-7z" ||
+      mt === "application/gzip" || mt === "application/x-tar" ||
+      mt === "application/x-bzip2") return "archive";
   return "other";
 }

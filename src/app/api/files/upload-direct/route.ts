@@ -38,9 +38,14 @@ const EXT_TO_MIME: Record<string, string> = {
   "7z": "application/x-7z-compressed",
 };
 
+// Extensions where browser-reported MIME is unreliable — prefer our map.
+const ARCHIVE_EXTS = new Set(["zip", "rar", "7z", "gz", "tar", "bz2"]);
+
 function getMimeType(filename: string, providedType: string): string {
-  if (providedType && providedType !== "application/octet-stream") return providedType;
   const ext = filename.split(".").pop()?.toLowerCase() || "";
+  // Archives: browser MIME varies wildly (x-rar / vnd.rar / octet-stream) — always trust extension.
+  if (ARCHIVE_EXTS.has(ext) && EXT_TO_MIME[ext]) return EXT_TO_MIME[ext];
+  if (providedType && providedType !== "application/octet-stream") return providedType;
   return EXT_TO_MIME[ext] || "application/octet-stream";
 }
 
@@ -112,8 +117,7 @@ export async function POST(request: NextRequest) {
     }
 
     const fileName = fileData.name.replace(/^.*\//, "").trim();
-    let fileType = fileData.type || "";
-    if (!fileType) fileType = getMimeType(fileName, "");
+    const fileType = getMimeType(fileName, fileData.type || "");
     const fileSize = fileData.size;
     const fileBuffer = fileData.buffer;
     const folderId = fields.folderId || null;
