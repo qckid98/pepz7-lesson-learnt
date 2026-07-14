@@ -224,15 +224,14 @@ export default function FileManager() {
   };
 
   // ===== Core upload single file (with retry) =====
-  // Files >= 10MB: use presigned URL (bypass Next.js proxy)
-  // All files: stream through server (proxyClientMaxBodySize: 250mb handles large files)
+  // All files: stream through server (proxyClientMaxBodySize: 1100mb handles up to 1GB)
   const uploadSingleFile = async (file: File, folderId: string | null, uploadId: string) => {
     const maxRetries = 2;
     let lastError = "";
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        // All files: stream through server (proxyClientMaxBodySize: 250mb)
+        // Stream through server (proxyClientMaxBodySize: 1100mb)
         const formData = new FormData();
         formData.append("file", file);
         formData.append("folderId", folderId || "");
@@ -240,7 +239,7 @@ export default function FileManager() {
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.open("POST", "/api/files/upload-direct");
-          xhr.timeout = 300000; // 5 min timeout
+          xhr.timeout = 1800000; // 30 min — accommodates 1GB on slow links
           xhr.upload.onprogress = (event) => {
             if (event.lengthComputable) {
               const progress = Math.round((event.loaded / event.total) * 100);
