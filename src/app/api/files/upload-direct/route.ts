@@ -8,7 +8,7 @@ import Busboy from "busboy";
 import { Readable } from "stream";
 
 export const runtime = "nodejs";
-export const maxDuration = 600;
+export const maxDuration = 1800; // 30 min — accommodates 1GB uploads
 export const dynamic = "force-dynamic";
 
 const EXT_TO_MIME: Record<string, string> = {

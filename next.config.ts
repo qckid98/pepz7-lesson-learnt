@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Next.js 16 internal proxy — allow large multipart uploads
   experimental: {
-    proxyClientMaxBodySize: "250mb",
+    proxyClientMaxBodySize: "1100mb",
   },
   // @silurus/ooxml uses ESM-only imports and Web Workers
   transpilePackages: ["@silurus/ooxml"],

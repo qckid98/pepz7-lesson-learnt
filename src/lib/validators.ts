@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-// Global max file size: 200MB for all file types
-const MAX_FILE_SIZE = 200 * 1024 * 1024;
+// Global max file size: 1GB for all file types
+const MAX_FILE_SIZE = 1024 * 1024 * 1024;
 
-// Allowed file types (max size is global 200MB for all)
+// Allowed file types (max size is global 1GB for all)
 export const ALLOWED_FILE_TYPES: Record<string, { maxSize: number }> = {
   // Documents
   "application/pdf": { maxSize: MAX_FILE_SIZE },
