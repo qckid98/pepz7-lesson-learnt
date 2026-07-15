@@ -1,0 +1,72 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e29]:
+    - banner [ref=e30]:
+      - generic [ref=e31]:
+        - img "Logo" [ref=e32]
+        - heading "File Sharing" [level=1] [ref=e33]
+      - generic [ref=e34]:
+        - link "Admin" [ref=e35] [cursor=pointer]:
+          - /url: /admin
+        - button "A Administrator" [ref=e37]:
+          - generic [ref=e38]: A
+          - generic [ref=e40]: Administrator
+    - generic [ref=e41]:
+      - complementary [ref=e42]:
+        - generic [ref=e43]:
+          - button "Shared Files" [ref=e44]
+          - button "Recent" [ref=e48]
+        - paragraph [ref=e54]: Folders
+        - generic [ref=e55]:
+          - button "Pengumuman" [ref=e57]
+          - button "Materi Training" [ref=e62]
+      - generic [ref=e66]:
+        - generic [ref=e67]:
+          - textbox "Cari file & folder..." [ref=e72]
+          - 'button "Sort: name (asc)" [ref=e73]'
+          - generic [ref=e74]:
+            - button "List view" [ref=e75]
+            - button "Grid view" [ref=e77]
+        - button "Shared Files" [ref=e82]
+        - table [ref=e85]:
+          - rowgroup [ref=e86]:
+            - row [ref=e87]:
+              - columnheader "Nama" [ref=e88] [cursor=pointer]
+              - columnheader "Tipe" [ref=e89]
+              - columnheader "Ukuran" [ref=e90] [cursor=pointer]
+              - columnheader "Diubah" [ref=e91] [cursor=pointer]
+              - columnheader [ref=e92]
+          - rowgroup [ref=e93]:
+            - row [ref=e94] [cursor=pointer]:
+              - cell "Dokumen Internal" [ref=e95]
+              - cell "FOLDER" [ref=e100]
+              - cell "—" [ref=e101]
+              - cell "15 Jul 2026" [ref=e102]
+              - cell [ref=e103]:
+                - button [ref=e104]
+            - row [ref=e109] [cursor=pointer]:
+              - cell "Materi Training" [ref=e110]
+              - cell "FOLDER" [ref=e115]
+              - cell "—" [ref=e116]
+              - cell "15 Jul 2026" [ref=e117]
+              - cell [ref=e118]:
+                - button [ref=e119]
+            - row [ref=e124] [cursor=pointer]:
+              - cell "Pengumuman" [ref=e125]
+              - cell "FOLDER" [ref=e130]
+              - cell "—" [ref=e131]
+              - cell "15 Jul 2026" [ref=e132]
+              - cell [ref=e133]:
+                - button [ref=e134]
+  - region "Notifications alt+T"
+  - generic [ref=e23] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e24]
+    - generic [ref=e139]:
+      - button "Open issues overlay" [ref=e140]:
+        - generic [ref=e141]:
+          - generic [ref=e142]: "1"
+          - generic [ref=e143]: "2"
+        - generic [ref=e144]:
+          - text: Issue
+          - generic [ref=e145]: s
+      - button "Collapse issues badge" [ref=e146]
+  - alert [ref=e18]

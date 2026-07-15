@@ -1,0 +1,25 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - img "Logo" [ref=e5]
+      - heading "Login" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Masuk ke File Sharing Platform
+    - generic [ref=e8]:
+      - generic [ref=e28]: Email atau password salah
+      - generic [ref=e9]:
+        - generic [ref=e10]: Email
+        - textbox "Email" [ref=e11]:
+          - /placeholder: nama@email.com
+          - text: admin@admin.com
+      - generic [ref=e12]:
+        - generic [ref=e13]: Password
+        - textbox "Password" [ref=e14]:
+          - /placeholder: Masukkan password
+          - text: BabihutaN!23
+      - button "Login" [ref=e15]
+    - paragraph [ref=e16]:
+      - link "← Kembali ke halaman utama" [ref=e17] [cursor=pointer]:
+        - /url: /
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e23] [cursor=pointer]
+  - alert [ref=e27]

@@ -1,0 +1,76 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - img "Logo" [ref=e5]
+        - heading "Admin Panel" [level=1] [ref=e6]
+      - generic [ref=e7]:
+        - link "Public Site" [ref=e8] [cursor=pointer]:
+          - /url: /
+        - button "A Administrator" [ref=e14]:
+          - generic [ref=e15]: A
+          - generic [ref=e17]: Administrator
+    - navigation [ref=e18]:
+      - link "File Manager" [ref=e19] [cursor=pointer]:
+        - /url: /admin
+      - link "User" [ref=e24] [cursor=pointer]:
+        - /url: /admin/users
+      - link "Statistik" [ref=e31] [cursor=pointer]:
+        - /url: /admin/stats
+    - generic [ref=e36]:
+      - complementary [ref=e37]:
+        - generic [ref=e38]:
+          - button "My Files" [ref=e39]
+          - button "Recent" [ref=e43]
+          - button "Starred" [ref=e47]
+          - button "Trash" [ref=e50]
+        - paragraph [ref=e56]: Folders
+        - generic [ref=e57]:
+          - button "Pengumuman" [ref=e154]
+          - button "Materi Training" [ref=e159]
+          - button "Dokumen Internal" [ref=e164]
+      - generic [ref=e59]:
+        - generic [ref=e60]:
+          - button "Upload" [ref=e61]
+          - button "Upload Folder" [ref=e66]
+          - button "Folder Baru" [ref=e70]
+          - button "Pilih" [ref=e73]
+          - textbox "Cari file & folder..." [ref=e82]
+          - 'button "Sort: name (asc)" [ref=e83]'
+          - generic [ref=e84]:
+            - button "List view" [ref=e85]
+            - button "Grid view" [ref=e87]
+        - button "My Files" [ref=e92]
+        - table [ref=e168]:
+          - rowgroup [ref=e169]:
+            - row [ref=e170]:
+              - columnheader "Nama" [ref=e171] [cursor=pointer]
+              - columnheader "Tipe" [ref=e172]
+              - columnheader "Ukuran" [ref=e173] [cursor=pointer]
+              - columnheader "Diubah" [ref=e174] [cursor=pointer]
+              - columnheader [ref=e175]
+          - rowgroup [ref=e176]:
+            - row [ref=e177] [cursor=pointer]:
+              - cell "Dokumen Internal" [ref=e178]
+              - cell "FOLDER" [ref=e183]
+              - cell "—" [ref=e184]
+              - cell "15 Jul 2026" [ref=e185]
+              - cell [ref=e186]:
+                - button [ref=e187]
+            - row [ref=e192] [cursor=pointer]:
+              - cell "Materi Training" [ref=e193]
+              - cell "FOLDER" [ref=e198]
+              - cell "—" [ref=e199]
+              - cell "15 Jul 2026" [ref=e200]
+              - cell [ref=e201]:
+                - button [ref=e202]
+            - row [ref=e207] [cursor=pointer]:
+              - cell "Pengumuman" [ref=e208]
+              - cell "FOLDER" [ref=e213]
+              - cell "—" [ref=e214]
+              - cell "15 Jul 2026" [ref=e215]
+              - cell [ref=e216]:
+                - button [ref=e217]
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e148] [cursor=pointer]
+  - alert [ref=e152]

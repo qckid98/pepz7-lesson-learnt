@@ -41,7 +41,7 @@ export type LayoutMode = "grid" | "list";
 export type SortBy = "name" | "modified" | "size" | "type";
 export type SortDir = "asc" | "desc";
 
-interface FileManagerState {
+export interface FileManagerState {
   // Navigation
   currentFolderId: string | null;
   viewMode: ViewMode;

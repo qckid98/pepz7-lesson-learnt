@@ -1,0 +1,62 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - banner [ref=f1e3]:
+      - generic [ref=f1e4]:
+        - img "Logo" [ref=f1e5]
+        - heading "File Sharing" [level=1] [ref=f1e6]
+      - generic [ref=f1e7]:
+        - link "Admin" [ref=f1e8] [cursor=pointer]:
+          - /url: /admin
+        - button "A Administrator" [ref=f1e10]:
+          - generic [ref=f1e11]: A
+          - generic [ref=f1e13]: Administrator
+    - generic [ref=f1e14]:
+      - complementary [ref=f1e15]:
+        - generic [ref=f1e16]:
+          - button "Shared Files" [ref=f1e17]
+          - button "Recent" [ref=f1e21]
+        - paragraph [ref=f1e27]: Folders
+        - generic [ref=f1e28]:
+          - button "Pengumuman" [ref=f1e62]
+          - button "Materi Training" [ref=f1e67]
+      - generic [ref=f1e30]:
+        - generic [ref=f1e31]:
+          - textbox "Cari file & folder..." [ref=f1e36]
+          - 'button "Sort: name (asc)" [ref=f1e37]'
+          - generic [ref=f1e38]:
+            - button "List view" [ref=f1e39]
+            - button "Grid view" [ref=f1e41]
+        - button "Shared Files" [ref=f1e71]
+        - table [ref=f1e72]:
+          - rowgroup [ref=f1e73]:
+            - row [ref=f1e74]:
+              - columnheader "Nama" [ref=f1e75] [cursor=pointer]
+              - columnheader "Tipe" [ref=f1e76]
+              - columnheader "Ukuran" [ref=f1e77] [cursor=pointer]
+              - columnheader "Diubah" [ref=f1e78] [cursor=pointer]
+              - columnheader [ref=f1e79]
+          - rowgroup [ref=f1e80]:
+            - row [ref=f1e81] [cursor=pointer]:
+              - cell "Dokumen Internal" [ref=f1e82]
+              - cell "FOLDER" [ref=f1e87]
+              - cell "—" [ref=f1e88]
+              - cell "15 Jul 2026" [ref=f1e89]
+              - cell [ref=f1e90]:
+                - button [ref=f1e91]
+            - row [ref=f1e96] [cursor=pointer]:
+              - cell "Materi Training" [ref=f1e97]
+              - cell "FOLDER" [ref=f1e102]
+              - cell "—" [ref=f1e103]
+              - cell "15 Jul 2026" [ref=f1e104]
+              - cell [ref=f1e105]:
+                - button [ref=f1e106]
+            - row [ref=f1e111] [cursor=pointer]:
+              - cell "Pengumuman" [ref=f1e112]
+              - cell "FOLDER" [ref=f1e117]
+              - cell "—" [ref=f1e118]
+              - cell "15 Jul 2026" [ref=f1e119]
+              - cell [ref=f1e120]:
+                - button [ref=f1e121]
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f1e57] [cursor=pointer]
+  - alert [ref=f1e126]

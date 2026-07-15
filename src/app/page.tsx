@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Header from "@/components/layout/Header";
-import ViewerFileManager from "@/components/file-manager/ViewerFileManager";
+import FileManager from "@/components/file-manager/FileManager";
 
 export default async function HomePage() {
   const session = await auth();
@@ -22,7 +22,7 @@ export default async function HomePage() {
         userName={session.user.name}
         userEmail={session.user.email}
       />
-      <ViewerFileManager />
+      <FileManager mode="viewer" />
     </div>
   );
 }

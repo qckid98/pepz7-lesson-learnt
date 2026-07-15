@@ -1,75 +1,28 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useFileManager, type FileItem, type FolderItem } from "@/hooks/use-file-manager";
-import { formatFileSize, getFileCategory } from "@/lib/validators";
-import PDFThumbnail from "@/components/file-manager/PDFThumbnail";
+import { useFileUpload } from "@/hooks/use-file-upload";
+import { useFileSearch } from "@/hooks/use-file-search";
+import { useFileOperations } from "@/hooks/use-file-operations";
+import { ChevronRightIcon, FolderIcon, UploadIcon } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { dragState } from "@/lib/drag-state";
 import PreviewOverlay from "@/components/file-manager/PreviewOverlay";
-import {
-  FolderIcon,
-  FolderOpenIcon,
-  StarIcon,
-  TrashIcon,
-  DownloadIcon,
-  UploadIcon,
-  PlusIcon,
-  ListIcon,
-  GridIcon,
-  ChevronRightIcon,
-  ChevronDownIcon,
-  MoreVerticalIcon,
-  EyeIcon,
-  MoveIcon,
-  ClockIcon,
-  HardDriveIcon,
-  HomeIcon,
-  XIcon,
-  FileIcon,
-  ImageIcon,
-  VideoIcon,
-  MusicIcon,
-  FileTypeIcon,
-  ArrowLeftIcon,
-  MenuIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  SearchIcon,
-  CheckSquareIcon,
-} from "lucide-react";
-
-// ============ Helper: File icon by type ============
-function getFileIcon(mimeType: string) {
-  const cat = getFileCategory(mimeType);
-  switch (cat) {
-    case "image": return <ImageIcon className="w-5 h-5 text-green-500" />;
-    case "video": return <VideoIcon className="w-5 h-5 text-purple-500" />;
-    case "audio": return <MusicIcon className="w-5 h-5 text-pink-500" />;
-    case "pdf": return <FileTypeIcon className="w-5 h-5 text-red-500" />;
-    default: return <FileIcon className="w-5 h-5 text-gray-400" />;
-  }
-}
-
-// ============ Helper: File type tag ============
-function getFileTypeTag(mimeType: string, extension: string) {
-  const cat = getFileCategory(mimeType);
-  const label = extension.toUpperCase().slice(0, 4);
-  let color = "bg-gray-100 text-gray-600";
-  switch (cat) {
-    case "image": color = "bg-green-100 text-green-700"; break;
-    case "video": color = "bg-purple-100 text-purple-700"; break;
-    case "audio": color = "bg-pink-100 text-pink-700"; break;
-    case "pdf": color = "bg-red-100 text-red-700"; break;
-    case "document": color = "bg-blue-100 text-blue-700"; break;
-    case "spreadsheet": color = "bg-emerald-100 text-emerald-700"; break;
-    case "presentation": color = "bg-orange-100 text-orange-700"; break;
-    case "text": color = "bg-gray-100 text-gray-600"; break;
-    case "archive": color = "bg-amber-100 text-amber-800"; break;
-  }
-  return { label, color };
-}
+import ExplorerSidebar from "@/components/file-manager/explorer-sidebar";
+import ExplorerToolbar from "@/components/file-manager/explorer-toolbar";
+import FileGridCard from "@/components/file-manager/file-grid-card";
+import FileListRow from "@/components/file-manager/file-list-row";
+import FileContextMenu from "@/components/file-manager/file-context-menu";
+import ConflictDialog from "@/components/file-manager/conflict-dialog";
+import UploadProgressPanel from "@/components/file-manager/upload-progress-panel";
+import BulkActionBar from "@/components/file-manager/bulk-action-bar";
+import NewFolderInline from "@/components/file-manager/new-folder-inline";
 
 // ============ Main Component ============
-export default function FileManager() {
+export default function FileManager({ mode = "admin" }: { mode?: "admin" | "viewer" }) {
+  const isAdmin = mode === "admin";
   const store = useFileManager();
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -78,21 +31,7 @@ export default function FileManager() {
   const [isDragOverPage, setIsDragOverPage] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [uploads, setUploads] = useState<Array<{ id: string; name: string; size: number; progress: number; status: "uploading" | "done" | "error"; error?: string }>>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<{ files: any[]; folders: any[] } | null>(null);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
-  const [conflictDialog, setConflictDialog] = useState<{
-    files: File[];
-    folderId: string | null;
-    existingNames: string[];
-    currentIndex: number;
-    skipAllSame: boolean;
-    overwriteAllSame: boolean;
-    resolvedFiles: File[];
-  } | null>(null);
 
   // ===== Fetch data =====
   const fetchData = useCallback(async () => {
@@ -111,7 +50,7 @@ export default function FileManager() {
         const data = await res.json();
         store.setData(data.files || [], data.folders || []);
       } else {
-        // "all" — browse folder
+        // "all" â€” browse folder
         if (store.currentFolderId) {
           const res = await fetch(`/api/folders/${store.currentFolderId}`);
           const data = await res.json();
@@ -137,14 +76,40 @@ export default function FileManager() {
     }
   }, [store.viewMode, store.currentFolderId]);
 
+  // ===== Extracted hooks =====
+  const { searchQuery, setSearchQuery, searchResults, searchLoading, clearSearch } = useFileSearch();
+  const {
+    uploads,
+    conflictDialog,
+    setConflictDialog,
+    handleUpload,
+    handleFolderUpload,
+    resolveConflict,
+    clearCompletedUploads,
+  } = useFileUpload({ currentFolderId: store.currentFolderId, onUploaded: fetchData });
+  const {
+    deleteLoading,
+    handleRename,
+    handleStar,
+    handleTrash,
+    handleRestore,
+    handlePermanentDelete,
+    handleMove,
+    handleSelect: handleSelectItem,
+    handleBulkRestore,
+    handleBulkPermanentDelete,
+  } = useFileOperations({ store, fetchData });
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   // ===== Breadcrumbs =====
+  const rootLabel = isAdmin ? "My Files" : "Shared Files";
+  const setBreadcrumbs = store.setBreadcrumbs;
   const fetchBreadcrumbs = useCallback(async (folderId: string | null) => {
     if (!folderId) {
-      store.setBreadcrumbs([{ id: null, name: "My Files" }]);
+      setBreadcrumbs([{ id: null, name: rootLabel }]);
       return;
     }
     try {
@@ -157,53 +122,26 @@ export default function FileManager() {
         crumbs.unshift({ id: f.id, name: f.name });
         currentId = f.parentId;
       }
-      crumbs.unshift({ id: null, name: "My Files" });
-      store.setBreadcrumbs(crumbs);
+      crumbs.unshift({ id: null, name: rootLabel });
+      setBreadcrumbs(crumbs);
     } catch { /* ignore */ }
-  }, []);
+  }, [rootLabel, setBreadcrumbs]);
 
   useEffect(() => {
     if (store.viewMode === "all") fetchBreadcrumbs(store.currentFolderId);
-    else if (store.viewMode === "recent") store.setBreadcrumbs([{ id: null, name: "Recent" }]);
-    else if (store.viewMode === "starred") store.setBreadcrumbs([{ id: null, name: "Starred" }]);
-    else if (store.viewMode === "trash") store.setBreadcrumbs([{ id: null, name: "Trash" }]);
-  }, [store.viewMode, store.currentFolderId]);
+    else if (store.viewMode === "recent") setBreadcrumbs([{ id: null, name: "Recent" }]);
+    else if (store.viewMode === "starred") setBreadcrumbs([{ id: null, name: "Starred" }]);
+    else if (store.viewMode === "trash") setBreadcrumbs([{ id: null, name: "Trash" }]);
+  }, [store.viewMode, store.currentFolderId, fetchBreadcrumbs, setBreadcrumbs]);
 
   // ===== Actions =====
   const handleNavigate = (folderId: string | null) => {
     store.setCurrentFolder(folderId);
     store.setViewMode("all");
-    // Clear search when navigating
-    setSearchQuery("");
-    setSearchResults(null);
+    clearSearch();
   };
 
-  // ===== Search =====
-  const handleSearch = useCallback(async (q: string) => {
-    setSearchQuery(q);
-    if (!q.trim() || q.trim().length < 1) {
-      setSearchResults(null);
-      return;
-    }
-    setSearchLoading(true);
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}&type=all`);
-      if (res.ok) {
-        const data = await res.json();
-        setSearchResults({ files: data.results || [], folders: data.folders || [] });
-      }
-    } catch { /* ignore */ }
-    setSearchLoading(false);
-  }, []);
-
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery !== "") handleSearch(searchQuery);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, handleSearch]);
-
+  // ===== Create folder =====
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
@@ -223,288 +161,6 @@ export default function FileManager() {
     } catch { /* ignore */ }
   };
 
-  // ===== Core upload single file (with retry) =====
-  // All files: stream through server (proxyClientMaxBodySize: 1100mb handles up to 1GB)
-  const uploadSingleFile = async (file: File, folderId: string | null, uploadId: string) => {
-    const maxRetries = 2;
-    let lastError = "";
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        // Stream through server (proxyClientMaxBodySize: 1100mb)
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("folderId", folderId || "");
-
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", "/api/files/upload-direct");
-          xhr.timeout = 1800000; // 30 min — accommodates 1GB on slow links
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const progress = Math.round((event.loaded / event.total) * 100);
-              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress } : u));
-            }
-          };
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress: 100, status: "done" } : u));
-              resolve();
-            } else {
-              let errMsg = "Upload gagal";
-              try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch {}
-              lastError = errMsg;
-              reject(new Error(errMsg));
-            }
-          };
-          xhr.onerror = () => { lastError = "Network error"; reject(new Error(lastError)); };
-          xhr.ontimeout = () => { lastError = "Timeout"; reject(new Error(lastError)); };
-          xhr.send(formData);
-        });
-        return; // Success
-      } catch (e) {
-        if (attempt < maxRetries) {
-          await new Promise(r => setTimeout(r, 1000));
-          setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, progress: 0, status: "uploading" } : u));
-        } else {
-          setUploads((prev) => prev.map((u) => u.id === uploadId ? { ...u, status: "error", error: lastError } : u));
-        }
-      }
-    }
-  };
-
-  // ===== Check existing files and resolve conflicts =====
-  const checkAndUpload = async (fileArray: File[], folderId: string | null) => {
-    // Check which files already exist
-    const fileNames = fileArray.map((f) => f.name.replace(/^.*\//, "").trim());
-    let existingNames: string[] = [];
-    try {
-      const res = await fetch("/api/files/check-existing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folderId, fileNames }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        existingNames = data.existing || [];
-      }
-    } catch { /* ignore */ }
-
-    let filesToUpload: File[] = [];
-
-    if (existingNames.length > 0) {
-      // Show conflict dialog
-      const conflictFiles = fileArray.filter((f) => existingNames.includes(f.name.replace(/^.*\//, "").trim()));
-      const nonConflictFiles = fileArray.filter((f) => !existingNames.includes(f.name.replace(/^.*\//, "").trim()));
-
-      // Upload non-conflicting files immediately
-      if (nonConflictFiles.length > 0) {
-        const newUploads = nonConflictFiles.map((file, i) => ({
-          id: `${Date.now()}-${i}`,
-          name: file.name.replace(/^.*\//, "").trim(),
-          size: file.size,
-          progress: 0,
-          status: "uploading" as const,
-        }));
-        setUploads((prev) => [...prev, ...newUploads]);
-
-        for (let i = 0; i < nonConflictFiles.length; i++) {
-          await uploadSingleFile(nonConflictFiles[i], folderId, newUploads[i].id);
-        }
-      }
-
-      // Show conflict dialog for conflicting files
-      filesToUpload = await new Promise<File[]>((resolve) => {
-        setConflictDialog({
-          files: conflictFiles,
-          folderId,
-          existingNames,
-          currentIndex: 0,
-          skipAllSame: false,
-          overwriteAllSame: false,
-          resolvedFiles: [],
-        });
-
-        (window as any).__resolveConflict = (result: File[]) => {
-          setConflictDialog(null);
-          resolve(result);
-        };
-      });
-    } else {
-      filesToUpload = fileArray;
-    }
-
-    // Upload resolved files (includes overwrite files)
-    if (filesToUpload.length > 0) {
-      // For overwrite: delete existing files first, then upload
-      // Upload API creates new file record — old one stays as duplicate
-      // But check-existing already filtered, so these are either new or overwrite
-      const moreUploads = filesToUpload.map((file, i) => ({
-        id: `${Date.now()}-r${i}`,
-        name: file.name.replace(/^.*\//, "").trim(),
-        size: file.size,
-        progress: 0,
-        status: "uploading" as const,
-      }));
-      setUploads((prev) => [...prev, ...moreUploads]);
-
-      for (let i = 0; i < filesToUpload.length; i++) {
-        await uploadSingleFile(filesToUpload[i], folderId, moreUploads[i].id);
-      }
-    }
-
-    fetchData();
-    setTimeout(() => {
-      setUploads((prev) => prev.filter((u) => u.status !== "done"));
-    }, 3000);
-  };
-
-  const handleUpload = async (files: FileList) => {
-    const fileArray = Array.from(files);
-    await checkAndUpload(fileArray, store.currentFolderId);
-  };
-
-  // ===== Upload folder (drag & drop or picker) =====
-  const handleFolderUpload = async (files: FileList) => {
-    const fileArray = Array.from(files);
-    if (fileArray.length === 0) return;
-
-    // Extract folder structure from webkitRelativePath
-    const folderCache = new Map<string, string>();
-    folderCache.set("", store.currentFolderId || "");
-
-    async function getOrCreateFolder(path: string): Promise<string> {
-      if (folderCache.has(path)) return folderCache.get(path)!;
-
-      const parts = path.split("/").filter(Boolean);
-      let currentPath = "";
-      let parentId = store.currentFolderId || "";
-
-      for (const part of parts) {
-        currentPath = currentPath ? `${currentPath}/${part}` : part;
-        if (folderCache.has(currentPath)) {
-          parentId = folderCache.get(currentPath)!;
-          continue;
-        }
-
-        try {
-          // Try to create folder
-          const res = await fetch("/api/folders", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: part, parentId: parentId || null, visibility: "PUBLIC" }),
-          });
-
-          if (res.ok) {
-            // Folder created successfully
-            const data = await res.json();
-            folderCache.set(currentPath, data.id);
-            parentId = data.id;
-          } else if (res.status === 409) {
-            // Folder already exists — find it and use its ID
-            // Fetch children of current parent to find existing folder
-            const listRes = await fetch(`/api/folders?parentId=${parentId || ""}`);
-            if (listRes.ok) {
-              const folders = await listRes.json();
-              const existing = folders.find((f: { name: string }) => f.name === part);
-              if (existing) {
-                folderCache.set(currentPath, existing.id);
-                parentId = existing.id;
-              }
-            }
-          }
-        } catch (e) {
-          console.error("Folder create error:", e);
-        }
-      }
-      return parentId;
-    }
-
-    // Group files by their target folder
-    const filesByFolder = new Map<string, File[]>();
-
-    for (const file of fileArray) {
-      const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || "";
-      const dirPath = relativePath.includes("/") ? relativePath.substring(0, relativePath.lastIndexOf("/")) : "";
-      const targetFolderId = await getOrCreateFolder(dirPath);
-      if (!filesByFolder.has(targetFolderId)) {
-        filesByFolder.set(targetFolderId, []);
-      }
-      filesByFolder.get(targetFolderId)!.push(file);
-    }
-
-    // Upload each group with conflict checking (includes overwrite support)
-    for (const [folderId, files] of filesByFolder) {
-      await checkAndUpload(files, folderId);
-    }
-  };
-
-  const handleRename = async (id: string, type: "file" | "folder", newName: string) => {
-    if (!newName.trim()) { store.setRenamingId(null); return; }
-    try {
-      await fetch(`/api/${type}s/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName.trim() }),
-      });
-    } catch { /* ignore */ }
-    store.setRenamingId(null);
-    fetchData();
-  };
-
-  const handleStar = async (id: string, type: "file" | "folder") => {
-    await fetch(`/api/${type}s/${id}/star`, { method: "POST" });
-    fetchData();
-  };
-
-  const handleTrash = async (fileIds: string[], folderIds: string[]) => {
-    const hasFolders = folderIds.length > 0;
-    const confirmMsg = hasFolders
-      ? `Pindahkan ${fileIds.length + folderIds.length} item ke tempat sampah? Folder beserta semua isinya akan dipindahkan.`
-      : `Pindahkan ${fileIds.length} file ke tempat sampah?`;
-    if (!confirm(confirmMsg)) return;
-    setDeleteLoading(true);
-    await fetch("/api/files/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "trash", fileIds, folderIds }),
-    });
-    store.clearSelection();
-    setDeleteLoading(false);
-    fetchData();
-  };
-
-  const handleRestore = async (id: string) => {
-    await fetch(`/api/trash/${id}/restore`, { method: "POST" });
-    fetchData();
-  };
-
-  const handlePermanentDelete = async (id: string) => {
-    if (!confirm("Hapus permanen? Tidak bisa dikembalikan.")) return;
-    await fetch(`/api/trash/${id}`, { method: "DELETE" });
-    fetchData();
-  };
-
-  const handleMove = async (fileIds: string[], folderIds: string[], targetId: string | null) => {
-    if (fileIds.length) {
-      await fetch("/api/files/move", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileIds, targetFolderId: targetId }),
-      });
-    }
-    if (folderIds.length) {
-      for (const fid of folderIds) {
-        await fetch("/api/folders/move", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ folderId: fid, targetParentId: targetId }),
-        });
-      }
-    }
-    fetchData();
-  };
-
   // ===== Context menu handler =====
   const handleContextMenu = (e: React.MouseEvent, type: "file" | "folder", id: string) => {
     e.preventDefault();
@@ -516,8 +172,8 @@ export default function FileManager() {
     // If search is active, use search results instead of current folder
     if (searchResults && searchQuery.trim()) {
       const items: Array<(FileItem | FolderItem) & { _isFolder: boolean }> = [
-        ...searchResults.folders.map((f) => ({ ...f, _isFolder: true })),
-        ...searchResults.files.map((f) => ({ ...f, _isFolder: false, size: f.size?.toString() || "0" })),
+        ...searchResults.folders.map((f) => ({ ...f, _isFolder: true }) as FolderItem & { _isFolder: boolean }),
+        ...searchResults.files.map((f) => ({ ...f, _isFolder: false, size: (f.size as string) || "0" }) as FileItem & { _isFolder: boolean }),
       ];
       return items;
     }
@@ -546,13 +202,23 @@ export default function FileManager() {
   const allIds = sortedItems.map((i) => i.id);
   const selectedCount = store.selectedIds.size;
 
+  // Virtualizer for list view — handles 1000+ rows smoothly
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: sortedItems.length,
+    getScrollElement: () => listScrollRef.current,
+    estimateSize: () => 45, // approx row height
+    overscan: 10,
+    enabled: store.layout === "list" && !store.loading,
+  });
+
   // ===== Drag state =====
   const dragDataRef = useRef<{ type: "file" | "folder"; ids: string[] } | null>(null);
 
   const handleDragStart = (e: React.DragEvent, id: string, type: "file" | "folder") => {
     const ids = store.selectedIds.has(id) ? Array.from(store.selectedIds) : [id];
     dragDataRef.current = { type, ids };
-    (window as any).__dragData = { type, ids }; // Also store globally for sidebar drop
+    dragState.current = { type, ids }; // Shared with sidebar drop
     e.dataTransfer.effectAllowed = "move";
   };
 
@@ -572,21 +238,21 @@ export default function FileManager() {
   return (
     <div
       className="flex h-[calc(100vh-4rem)]"
-      onDragOver={(e) => { e.preventDefault(); setIsDragOverPage(true); }}
-      onDragLeave={() => setIsDragOverPage(false)}
-      onDrop={async (e) => {
+      onDragOver={isAdmin ? (e) => { e.preventDefault(); setIsDragOverPage(true); } : undefined}
+      onDragLeave={isAdmin ? () => setIsDragOverPage(false) : undefined}
+      onDrop={isAdmin ? async (e) => {
         e.preventDefault();
         setIsDragOverPage(false);
 
         // Check if this is an internal drag (file/folder move), not external file drop
-        const dragData = (window as any).__dragData;
+        const dragData = dragState.current;
         if (dragData) {
           // Internal drag — don't trigger upload, let folder drop handlers deal with it
-          (window as any).__dragData = null;
+          dragState.current = null;
           return;
         }
 
-        // External file drop — handle upload
+        // External file drop â€” handle upload
         const items = e.dataTransfer.items;
         const droppedFiles: File[] = [];
 
@@ -647,18 +313,18 @@ export default function FileManager() {
         if (e.dataTransfer.files.length > 0) {
           handleUpload(e.dataTransfer.files);
         }
-      }}
+      } : undefined}
     >
       {/* ===== SIDEBAR (drawer on mobile) ===== */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
-      <Sidebar onNavigate={(id) => { handleNavigate(id); setSidebarOpen(false); }} onRefresh={fetchData} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <ExplorerSidebar onNavigate={(id) => { handleNavigate(id); setSidebarOpen(false); }} onRefresh={fetchData} open={sidebarOpen} onClose={() => setSidebarOpen(false)} isAdmin={isAdmin} rootLabel={rootLabel} />
 
       {/* ===== MAIN CONTENT ===== */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Toolbar */}
-        <Toolbar
+        <ExplorerToolbar
           onNewFolder={() => setShowNewFolder(true)}
           onUploadClick={() => uploadInputRef?.click()}
           onFolderUploadClick={() => folderUploadInputRef?.click()}
@@ -670,20 +336,21 @@ export default function FileManager() {
           viewMode={store.viewMode}
           onMenuClick={() => setSidebarOpen(true)}
           searchQuery={searchQuery}
-          onSearchChange={handleSearch}
+          onSearchChange={setSearchQuery}
           searchLoading={searchLoading}
           selectMode={selectMode}
           onToggleSelectMode={() => { setSelectMode(!selectMode); if (selectMode) store.clearSelection(); }}
+          isAdmin={isAdmin}
         />
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-1 px-3 sm:px-6 py-2 text-xs sm:text-sm border-b border-gray-100 flex-wrap overflow-x-auto">
           {searchResults && searchQuery.trim() ? (
             <button
-              onClick={() => { setSearchQuery(""); setSearchResults(null); }}
+              onClick={() => clearSearch()}
               className="text-blue-600 hover:underline font-medium"
             >
-              ← Kembali ke {store.currentFolderId ? "folder" : "My Files"}
+              &larr; Kembali ke {store.currentFolderId ? "folder" : "My Files"}
             </button>
           ) : (
             <>
@@ -703,123 +370,83 @@ export default function FileManager() {
         </div>
 
         {/* New folder form */}
-        {showNewFolder && (
-          <form onSubmit={handleCreateFolder} className="px-6 py-3 bg-blue-50 border-b border-blue-100 flex items-center gap-3">
-            <FolderIcon className="w-5 h-5 text-blue-500" />
-            <input
-              autoFocus
-              type="text"
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder="Nama folder baru"
-              className="flex-1 max-w-xs px-3 py-1.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-              onKeyDown={(e) => e.key === "Escape" && setShowNewFolder(false)}
-            />
-            <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Buat</button>
-            <button type="button" onClick={() => setShowNewFolder(false)} className="px-3 py-1.5 text-gray-600 text-sm">Batal</button>
-          </form>
+        {isAdmin && showNewFolder && (
+          <NewFolderInline
+            value={newFolderName}
+            onChange={setNewFolderName}
+            onSubmit={handleCreateFolder}
+            onCancel={() => setShowNewFolder(false)}
+          />
         )}
 
         {/* Bulk action bar */}
-        {selectedCount > 0 && (
-          <div className="px-3 sm:px-6 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-3 text-sm">
-            <span className="font-medium text-blue-700">{selectedCount} dipilih</span>
-            {store.viewMode !== "trash" && (
-              <>
-                <button
-                  onClick={() => {
-                    const fIds = Array.from(store.selectedIds).filter(id => store.files.some(f => f.id === id));
-                    const flIds = Array.from(store.selectedIds).filter(id => store.folders.some(f => f.id === id));
-                    if (fIds.length + flIds.length === 0) return;
-                    // Trigger ZIP download
-                    fetch("/api/files/bulk-download", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ fileIds: fIds, folderIds: flIds }),
-                    }).then(res => res.blob()).then(blob => {
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = "download.zip";
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }).catch(e => console.error("ZIP download error:", e));
-                  }}
-                  className="text-blue-600 hover:underline"
-                >
-                  Download ZIP
-                </button>
-                <button
-                  onClick={() => handleTrash(
-                    Array.from(store.selectedIds).filter(id => store.files.some(f => f.id === id)),
-                    Array.from(store.selectedIds).filter(id => store.folders.some(f => f.id === id))
-                  )}
-                  className="text-red-600 hover:underline"
-                >
-                  Hapus
-                </button>
-                <button onClick={store.clearSelection} className="text-gray-500 hover:underline">Batal</button>
-              </>
-            )}
-            {store.viewMode === "trash" && (
-              <>
-                <button
-                  onClick={async () => {
-                    const allIds = Array.from(store.selectedIds);
-                    for (const id of allIds) {
-                      await fetch(`/api/trash/${id}/restore`, { method: "POST" });
-                    }
-                    store.clearSelection();
-                    fetchData();
-                  }}
-                  className="text-green-600 hover:underline"
-                >
-                  Restore Semua
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!confirm(`Hapus permanen ${selectedCount} item? Tidak bisa dikembalikan.`)) return;
-                    const allIds = Array.from(store.selectedIds);
-                    for (const id of allIds) {
-                      await fetch(`/api/trash/${id}`, { method: "DELETE" });
-                    }
-                    store.clearSelection();
-                    fetchData();
-                  }}
-                  className="text-red-600 hover:underline"
-                >
-                  Hapus Permanen
-                </button>
-                <button onClick={store.clearSelection} className="text-gray-500 hover:underline">Batal</button>
-              </>
-            )}
-          </div>
+        {isAdmin && (
+          <BulkActionBar
+            selectedCount={selectedCount}
+            viewMode={store.viewMode}
+            selectedIds={store.selectedIds}
+            files={store.files}
+            folders={store.folders}
+            onClearSelection={store.clearSelection}
+            onTrash={handleTrash}
+            onBulkRestore={handleBulkRestore}
+            onBulkPermanentDelete={handleBulkPermanentDelete}
+          />
         )}
 
         {/* Content area */}
-        <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4">
+        <div ref={listScrollRef} className="flex-1 overflow-y-auto px-3 sm:px-6 py-4">
           {store.loading ? (
-            <div className="flex items-center justify-center h-40 text-gray-400">Memuat...</div>
+            store.layout === "grid" ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="flex flex-col items-center gap-2 p-3">
+                    <Skeleton className="w-16 h-16 rounded-md" />
+                    <Skeleton className="w-20 h-3" />
+                    <Skeleton className="w-12 h-2" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2 px-2 py-2.5 border-b border-gray-100">
+                    <Skeleton className="w-5 h-5 rounded" />
+                    <Skeleton className="flex-1 h-4" />
+                    <Skeleton className="w-10 h-3 hidden sm:block" />
+                    <Skeleton className="w-16 h-3 hidden md:block" />
+                    <Skeleton className="w-20 h-3 hidden sm:block" />
+                  </div>
+                ))}
+              </div>
+            )
           ) : sortedItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-gray-400">
               <FolderIcon className="w-12 h-12 mb-2 text-gray-300" />
-              <p>{searchResults && searchQuery.trim() ? `Tidak ditemukan hasil untuk "${searchQuery}"` : store.viewMode === "trash" ? "Tempat sampah kosong" : "Belum ada file atau folder"}</p>
+              <p className="mb-3">{searchResults && searchQuery.trim() ? `Tidak ditemukan hasil untuk "${searchQuery}"` : store.viewMode === "trash" ? "Tempat sampah kosong" : "Belum ada file atau folder"}</p>
+              {isAdmin && store.viewMode === "all" && !searchResults && (
+                <button onClick={() => uploadInputRef?.click()} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition">
+                  <UploadIcon className="w-4 h-4" /> Upload File
+                </button>
+              )}
             </div>
           ) : store.layout === "grid" ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
               {sortedItems.map((item) => (
-                <GridCard
+                <FileGridCard
                   key={item.id}
                   item={item}
                   selected={store.selectedIds.has(item.id)}
                   renaming={store.renamingId === item.id}
-                  onSelect={(e) => handleSelect(e, item.id)}
+                  selectMode={isAdmin && selectMode}
+                  onSelect={(e) => handleSelectItem(e, item.id, allIds)}
+                  onToggleSelect={() => store.toggleSelect(item.id)}
                   onOpen={() => item._isFolder ? handleNavigate(item.id) : setPreviewFileId(item.id)}
                   onContextMenu={(e) => handleContextMenu(e, item._isFolder ? "folder" : "file", item.id)}
-                  onDragStart={(e) => handleDragStart(e, item.id, item._isFolder ? "folder" : "file")}
-                  onDragOver={item._isFolder ? (e) => { e.preventDefault(); store.setDragOverFolderId(item.id); } : undefined}
-                  onDragLeave={item._isFolder ? () => store.setDragOverFolderId(null) : undefined}
-                  onDrop={item._isFolder ? (e) => handleDropOnFolder(e, item.id) : undefined}
+                  onDragStart={isAdmin ? (e) => handleDragStart(e, item.id, item._isFolder ? "folder" : "file") : undefined}
+                  onDragOver={isAdmin && item._isFolder ? (e) => { e.preventDefault(); store.setDragOverFolderId(item.id); } : undefined}
+                  onDragLeave={isAdmin && item._isFolder ? () => store.setDragOverFolderId(null) : undefined}
+                  onDrop={isAdmin && item._isFolder ? (e) => handleDropOnFolder(e, item.id) : undefined}
                   dragOver={store.dragOverFolderId === item.id}
                   onRename={(name) => handleRename(item.id, item._isFolder ? "folder" : "file", name)}
                   isTrash={store.viewMode === "trash"}
@@ -831,7 +458,7 @@ export default function FileManager() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    {selectMode && <th className="w-10 px-4 py-2"><input type="checkbox" checked={allIds.length > 0 && allIds.every((id) => store.selectedIds.has(id))} onChange={(e) => e.target.checked ? store.selectAll(allIds) : store.clearSelection()} className="rounded" /></th>}
+                    {isAdmin && selectMode && <th className="w-10 px-4 py-2"><input type="checkbox" checked={allIds.length > 0 && allIds.every((id) => store.selectedIds.has(id))} onChange={(e) => e.target.checked ? store.selectAll(allIds) : store.clearSelection()} className="rounded" /></th>}
                     <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer w-full" onClick={() => store.setSort("name")}>Nama</th>
                     <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell whitespace-nowrap">Tipe</th>
                     <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer hidden md:table-cell whitespace-nowrap" onClick={() => store.setSort("size")}>Ukuran</th>
@@ -840,26 +467,40 @@ export default function FileManager() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {sortedItems.map((item) => (
-                    <ListRow
-                      key={item.id}
-                      item={item}
-                      selected={store.selectedIds.has(item.id)}
-                      renaming={store.renamingId === item.id}
-                      selectMode={selectMode}
-                      onSelect={(e) => handleSelect(e, item.id)}
-                      onToggleSelect={() => store.toggleSelect(item.id)}
-                      onOpen={() => item._isFolder ? handleNavigate(item.id) : setPreviewFileId(item.id)}
-                      onContextMenu={(e) => handleContextMenu(e, item._isFolder ? "folder" : "file", item.id)}
-                      onDragStart={(e) => handleDragStart(e, item.id, item._isFolder ? "folder" : "file")}
-                      onDragOver={item._isFolder ? (e) => { e.preventDefault(); store.setDragOverFolderId(item.id); } : undefined}
-                      onDragLeave={item._isFolder ? () => store.setDragOverFolderId(null) : undefined}
-                      onDrop={item._isFolder ? (e) => handleDropOnFolder(e, item.id) : undefined}
-                      dragOver={store.dragOverFolderId === item.id}
-                      onRename={(name) => handleRename(item.id, item._isFolder ? "folder" : "file", name)}
-                      isTrash={store.viewMode === "trash"}
-                    />
-                  ))}
+                  {(() => {
+                    const virtualItems = rowVirtualizer.getVirtualItems();
+                    const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+                    const paddingBottom = virtualItems.length > 0 ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end : 0;
+                    return (
+                      <>
+                        {paddingTop > 0 && <tr style={{ height: paddingTop }}><td colSpan={6} /></tr>}
+                        {virtualItems.map((virtualRow) => {
+                          const item = sortedItems[virtualRow.index];
+                          return (
+                            <FileListRow
+                              key={item.id}
+                              item={item}
+                              selected={store.selectedIds.has(item.id)}
+                              renaming={store.renamingId === item.id}
+                              selectMode={isAdmin && selectMode}
+                              onSelect={(e) => handleSelectItem(e, item.id, allIds)}
+                              onToggleSelect={() => store.toggleSelect(item.id)}
+                              onOpen={() => item._isFolder ? handleNavigate(item.id) : setPreviewFileId(item.id)}
+                              onContextMenu={(e) => handleContextMenu(e, item._isFolder ? "folder" : "file", item.id)}
+                              onDragStart={isAdmin ? (e) => handleDragStart(e, item.id, item._isFolder ? "folder" : "file") : undefined}
+                              onDragOver={isAdmin && item._isFolder ? (e) => { e.preventDefault(); store.setDragOverFolderId(item.id); } : undefined}
+                              onDragLeave={isAdmin && item._isFolder ? () => store.setDragOverFolderId(null) : undefined}
+                              onDrop={isAdmin && item._isFolder ? (e) => handleDropOnFolder(e, item.id) : undefined}
+                              dragOver={store.dragOverFolderId === item.id}
+                              onRename={(name) => handleRename(item.id, item._isFolder ? "folder" : "file", name)}
+                              isTrash={store.viewMode === "trash"}
+                            />
+                          );
+                        })}
+                        {paddingBottom > 0 && <tr style={{ height: paddingBottom }}><td colSpan={6} /></tr>}
+                      </>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -868,35 +509,37 @@ export default function FileManager() {
       </div>
 
       {/* Hidden upload inputs */}
-      <input
-        ref={(el) => setUploadInputRef(el)}
-        type="file"
-        multiple
-        className="hidden"
-        onChange={(e) => e.target.files && handleUpload(e.target.files)}
-      />
-      <input
-        ref={(el) => setFolderUploadInputRef(el)}
-        type="file"
-        multiple
-        className="hidden"
-        // @ts-expect-error — webkitdirectory is non-standard but widely supported
-        webkitdirectory=""
-        directory=""
-        onChange={(e) => {
-          if (e.target.files && e.target.files.length > 0) handleFolderUpload(e.target.files);
-          e.target.value = ""; // Reset so same folder can be selected again
-        }}
-      />
+      {isAdmin && (
+        <>
+          <input
+            ref={(el) => setUploadInputRef(el)}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => e.target.files && handleUpload(e.target.files)}
+          />
+          <input
+            ref={(el) => setFolderUploadInputRef(el)}
+            type="file"
+            multiple
+            className="hidden"
+            // @ts-expect-error — webkitdirectory is non-standard but widely supported
+            webkitdirectory=""
+            directory=""
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) handleFolderUpload(e.target.files);
+              e.target.value = ""; // Reset so same folder can be selected again
+            }}
+          />
+        </>
+      )}
 
       {/* Conflict dialog */}
       {conflictDialog && (
         <ConflictDialog
           files={conflictDialog.files}
           existingNames={conflictDialog.existingNames}
-          onResolve={(resolved: File[]) => {
-            (window as any).__resolveConflict?.(resolved);
-          }}
+          onResolve={resolveConflict}
         />
       )}
 
@@ -922,69 +565,21 @@ export default function FileManager() {
       )}
 
       {/* Upload progress panel */}
-      {uploads.length > 0 && (
-        <div className="fixed bottom-4 right-4 left-4 sm:left-auto z-50 bg-white rounded-xl shadow-2xl border border-gray-200 w-auto sm:w-80 max-h-96 overflow-y-auto">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-900">
-              Upload ({uploads.filter((u) => u.status === "done").length}/{uploads.length})
-            </h3>
-            <button
-              onClick={() => setUploads((prev) => prev.filter((u) => u.status !== "done"))}
-              className="text-gray-400 hover:text-gray-600 text-xs"
-            >
-              {uploads.every((u) => u.status !== "uploading") ? "Tutup" : ""}
-            </button>
-          </div>
-          <div className="p-2 space-y-2">
-            {uploads.map((u) => (
-              <div key={u.id} className="px-2 py-2 rounded-lg bg-gray-50">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                    <span className="text-xs font-medium text-gray-900 truncate">{u.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                    {u.status === "done" && <CheckCircleIcon className="w-4 h-4 text-green-500" />}
-                    {u.status === "error" && <XCircleIcon className="w-4 h-4 text-red-500" />}
-                    {u.status === "uploading" && (
-                      <span className="text-xs text-blue-600 font-medium tabular-nums">{u.progress}%</span>
-                    )}
-                  </div>
-                </div>
-                {u.status === "uploading" && (
-                  <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-300 ease-out"
-                      style={{ width: `${u.progress}%` }}
-                    />
-                  </div>
-                )}
-                {u.status === "error" && (
-                  <p className="text-xs text-red-600 mt-1">{u.error}</p>
-                )}
-                {u.status === "done" && (
-                  <p className="text-xs text-green-600">
-                    {formatFileSize(BigInt(u.size))} • Selesai
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {isAdmin && <UploadProgressPanel uploads={uploads} onClear={clearCompletedUploads} />}
 
       {/* Context menu */}
       {store.contextMenu && (
-        <ContextMenu
+        <FileContextMenu
           {...store.contextMenu}
           onClose={() => store.setContextMenu(null)}
-          onStar={(type, id) => handleStar(id, type)}
-          onRename={(id) => { store.setRenamingId(id); store.setContextMenu(null); }}
-          onTrash={(fileIds, folderIds) => handleTrash(fileIds, folderIds)}
-          onRestore={handleRestore}
-          onPermanentDelete={handlePermanentDelete}
+          onStar={isAdmin ? (type, id) => handleStar(id, type) : () => {}}
+          onRename={isAdmin ? (id) => { store.setRenamingId(id); store.setContextMenu(null); } : () => {}}
+          onTrash={isAdmin ? (fileIds, folderIds) => handleTrash(fileIds, folderIds) : () => {}}
+          onRestore={isAdmin ? handleRestore : () => {}}
+          onPermanentDelete={isAdmin ? handlePermanentDelete : () => {}}
           onPreview={(id) => setPreviewFileId(id)}
           isTrash={store.viewMode === "trash"}
+          isAdmin={isAdmin}
         />
       )}
 
@@ -1006,564 +601,6 @@ export default function FileManager() {
           />
         );
       })()}
-    </div>
-  );
-
-  // ===== Selection handler =====
-  function handleSelect(e: React.MouseEvent, id: string) {
-    if (e.shiftKey && store.lastSelectedId) {
-      const start = allIds.indexOf(store.lastSelectedId);
-      const end = allIds.indexOf(id);
-      if (start !== -1 && end !== -1) {
-        const [from, to] = start < end ? [start, end] : [end, start];
-        store.selectRange(allIds.slice(from, to + 1));
-        return;
-      }
-    }
-    if (e.ctrlKey || e.metaKey) {
-      store.toggleSelect(id);
-    } else if (store.selectedIds.has(id) && store.selectedIds.size === 1) {
-      // Click on already-selected item → deselect
-      store.clearSelection();
-    } else {
-      store.clearSelection();
-      store.toggleSelect(id);
-    }
-  }
-}
-
-// ============ Sidebar ============
-function Sidebar({ onNavigate, onRefresh, open, onClose }: { onNavigate: (id: string | null) => void; onRefresh: () => void; open: boolean; onClose: () => void }) {
-  const store = useFileManager();
-  const [folders, setFolders] = useState<FolderItem[]>([]);
-
-  const fetchFolders = useCallback(async () => {
-    const res = await fetch("/api/folders?all=true");
-    const data = await res.json();
-    setFolders(data);
-  }, []);
-
-  useEffect(() => { fetchFolders(); }, [fetchFolders]);
-  useEffect(() => {
-    // Refresh folder tree when data changes
-    const interval = setInterval(fetchFolders, 5000);
-    return () => clearInterval(interval);
-  }, [fetchFolders]);
-
-  // Build tree
-  type TreeNode = FolderItem & { children: TreeNode[] };
-  const tree = buildTree(folders);
-
-  function buildTree(flat: FolderItem[]): TreeNode[] {
-    const map = new Map<string, TreeNode>();
-    const roots: TreeNode[] = [];
-    flat.forEach((f) => map.set(f.id, { ...f, children: [] }));
-    flat.forEach((f) => {
-      if (f.parentId && map.has(f.parentId)) map.get(f.parentId)!.children.push(map.get(f.id)!);
-      else roots.push(map.get(f.id)!);
-    });
-    return roots;
-  }
-
-  const navItems: { mode: typeof store.viewMode; icon: React.ReactNode; label: string }[] = [
-    { mode: "all", icon: <HomeIcon className="w-4 h-4" />, label: "My Files" },
-    { mode: "recent", icon: <ClockIcon className="w-4 h-4" />, label: "Recent" },
-    { mode: "starred", icon: <StarIcon className="w-4 h-4" />, label: "Starred" },
-    { mode: "trash", icon: <TrashIcon className="w-4 h-4" />, label: "Trash" },
-  ];
-
-  function renderTreeNodes(nodes: TreeNode[], depth = 0) {
-    return nodes.map((node) => {
-      const isActive = store.currentFolderId === node.id && store.viewMode === "all";
-      const isDragOver = store.dragOverFolderId === node.id;
-      return (
-        <div key={node.id}>
-          <button
-            onClick={() => { onNavigate(node.id); onRefresh(); }}
-            onDragOver={(e) => { e.preventDefault(); store.setDragOverFolderId(node.id); }}
-            onDragLeave={() => store.setDragOverFolderId(null)}
-            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); store.setDragOverFolderId(null); const dd = (window as any).__dragData; if (dd) { const fIds = dd.type === "file" ? dd.ids : []; const flIds = dd.type === "folder" ? dd.ids : []; fetch("/api/files/move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileIds: fIds, targetFolderId: node.id }) }).then(() => onRefresh()); flIds.forEach((fid: string) => fetch("/api/folders/move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ folderId: fid, targetParentId: node.id }) })); (window as any).__dragData = null; } }}
-            className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-sm transition ${
-              isDragOver ? "bg-blue-200 text-blue-800 ring-2 ring-blue-400" : isActive ? "bg-blue-100 text-blue-700 font-medium" : "text-gray-600 hover:bg-gray-100"
-            }`}
-            style={{ paddingLeft: `${8 + depth * 16}px` }}
-          >
-            <FolderIcon className="w-4 h-4 flex-shrink-0 text-blue-400" />
-            <span className="truncate">{node.name}</span>
-          </button>
-          {node.children.length > 0 && renderTreeNodes(node.children, depth + 1)}
-        </div>
-      );
-    });
-  }
-
-  return (
-    <aside className={`fixed lg:static top-0 left-0 h-full w-60 bg-white border-r border-gray-200 flex flex-col overflow-hidden z-50 transition-transform duration-300 lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
-      <div className="p-3 space-y-0.5">
-        {navItems.map((item) => (
-          <button
-            key={item.mode}
-            onClick={() => { store.setViewMode(item.mode); if (item.mode === "all") onNavigate(null); }}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition ${
-              store.viewMode === item.mode ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            {item.icon}
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="border-t border-gray-100" />
-      <div className="px-3 py-2">
-        <p className="text-xs font-semibold text-gray-400 uppercase mb-1 px-2">Folders</p>
-      </div>
-      <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-0.5">
-        {tree.length === 0 ? (
-          <p className="text-xs text-gray-400 px-2 py-2">Belum ada folder</p>
-        ) : (
-          renderTreeNodes(tree)
-        )}
-      </div>
-    </aside>
-  );
-}
-
-// ============ Toolbar ============
-function Toolbar(props: {
-  onNewFolder: () => void;
-  onUploadClick: () => void;
-  onFolderUploadClick?: () => void;
-  onSort: (by: "name" | "modified" | "size" | "type", dir?: "asc" | "desc") => void;
-  sortBy: string;
-  sortDir: string;
-  layout: string;
-  onToggleLayout: () => void;
-  viewMode: string;
-  onMenuClick?: () => void;
-  searchQuery?: string;
-  onSearchChange?: (q: string) => void;
-  searchLoading?: boolean;
-  selectMode?: boolean;
-  onToggleSelectMode?: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-2 px-3 sm:px-6 py-3 border-b border-gray-100">
-      {props.onMenuClick && (
-        <button onClick={props.onMenuClick} className="lg:hidden p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition" aria-label="Menu">
-          <MenuIcon className="w-5 h-5" />
-        </button>
-      )}
-      {props.viewMode !== "trash" && (
-        <>
-          <button onClick={props.onUploadClick} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-blue-600 text-white text-xs sm:text-sm rounded-lg hover:bg-blue-700 transition">
-            <UploadIcon className="w-4 h-4" /> <span className="hidden sm:inline">Upload</span>
-          </button>
-          {props.onFolderUploadClick && (
-            <button onClick={props.onFolderUploadClick} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg hover:bg-gray-50 transition">
-              <FolderIcon className="w-4 h-4" /> <span className="hidden sm:inline">Upload Folder</span>
-            </button>
-          )}
-          <button onClick={props.onNewFolder} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg hover:bg-gray-50 transition">
-            <PlusIcon className="w-4 h-4" /> <span className="hidden sm:inline">Folder Baru</span>
-          </button>
-          {/* Select mode toggle — for bulk ZIP download */}
-          {props.onToggleSelectMode && (
-            <button
-              onClick={props.onToggleSelectMode}
-              className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-lg transition ${
-                props.selectMode
-                  ? "bg-blue-600 text-white hover:bg-blue-700"
-                  : "border border-gray-300 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              <CheckSquareIcon className="w-4 h-4" /> <span className="hidden sm:inline">{props.selectMode ? "Selesai" : "Pilih"}</span>
-            </button>
-          )}
-        </>
-      )}
-      {/* Search bar — full DB search */}
-      {props.viewMode !== "trash" && props.onSearchChange && (
-        <div className="relative flex-1 max-w-xs">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={props.searchQuery || ""}
-            onChange={(e) => props.onSearchChange?.(e.target.value)}
-            placeholder="Cari file & folder..."
-            className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {props.searchLoading && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
-          )}
-        </div>
-      )}
-      <div className="flex-1" />
-      <button onClick={() => props.onSort("name")} className="text-xs sm:text-sm text-gray-500 hover:text-gray-700 px-2 py-1 hidden sm:block">
-        Sort: {props.sortBy} ({props.sortDir})
-      </button>
-      <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-        <button onClick={props.onToggleLayout} className={`p-1.5 ${props.layout === "list" ? "bg-gray-100" : ""}`} title="List view">
-          <ListIcon className="w-4 h-4" />
-        </button>
-        <button onClick={props.onToggleLayout} className={`p-1.5 ${props.layout === "grid" ? "bg-gray-100" : ""}`} title="Grid view">
-          <GridIcon className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ============ Grid Card ============
-function GridCard(props: {
-  item: FileItem | FolderItem & { _isFolder: boolean };
-  selected: boolean;
-  renaming: boolean;
-  onSelect: (e: React.MouseEvent) => void;
-  onOpen: () => void;
-  onContextMenu: (e: React.MouseEvent) => void;
-  onDragStart: (e: React.DragEvent) => void;
-  onDragOver?: (e: React.DragEvent) => void;
-  onDragLeave?: () => void;
-  onDrop?: (e: React.DragEvent) => void;
-  dragOver: boolean;
-  onRename: (name: string) => void;
-  isTrash: boolean;
-}) {
-  const isFolder = "_isFolder" in props.item && props.item._isFolder;
-  const file = !isFolder ? (props.item as FileItem) : null;
-
-  return (
-    <div
-      draggable={!props.renaming}
-      onDragStart={props.onDragStart}
-      onDragOver={props.onDragOver}
-      onDragLeave={props.onDragLeave}
-      onDrop={props.onDrop}
-      onClick={props.onSelect}
-      onDoubleClick={props.onOpen}
-      onContextMenu={props.onContextMenu}
-      className={`relative p-3 rounded-xl border-2 cursor-pointer transition ${
-        props.dragOver ? "border-blue-500 bg-blue-50" : props.selected ? "border-blue-400 bg-blue-50" : "border-transparent hover:border-gray-200 hover:bg-gray-50"
-      }`}
-    >
-      <div className="flex flex-col items-center gap-2">
-        <div className="relative w-16 h-16 flex items-center justify-center overflow-hidden rounded-md border border-gray-200">
-          {isFolder ? (
-            <FolderIcon className="w-10 h-10 text-blue-400" />
-          ) : file?.previewUrl ? (
-            file.mimeType.startsWith("image/") ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={file.previewUrl}
-                alt={file.name}
-                loading="lazy"
-                className="w-16 h-16 object-cover"
-              />
-            ) : file.mimeType.startsWith("video/") ? (
-              <video
-                src={file.previewUrl}
-                preload="metadata"
-                muted
-                className="w-16 h-16 object-cover"
-              />
-            ) : file.mimeType === "application/pdf" ? (
-              <PDFThumbnail fileId={file.id} size={64} className="w-16 h-16" />
-            ) : (
-              file && getFileIcon(file.mimeType)
-            )
-          ) : (
-            file && getFileIcon(file.mimeType)
-          )}
-          {/* File type tag */}
-          {!isFolder && file && (() => {
-            const tag = getFileTypeTag(file.mimeType, file.extension);
-            return (
-              <span className={`absolute top-0 right-0 text-[8px] font-bold px-1 py-0.5 rounded-bl-md ${tag.color}`}>
-                {tag.label}
-              </span>
-            );
-          })()}
-        </div>
-        {props.renaming ? (
-          <input
-            autoFocus
-            defaultValue={props.item.name}
-            onBlur={(e) => props.onRename(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") props.onRename((e.target as HTMLInputElement).value);
-              if (e.key === "Escape") props.onRename(props.item.name);
-            }}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full text-xs text-center px-1 py-0.5 border border-blue-400 rounded outline-none"
-          />
-        ) : (
-          <p className="text-xs text-center text-gray-700 truncate w-full">{props.item.name}</p>
-        )}
-            <p className="text-[10px] text-gray-400">
-              {isFolder ? `${(props.item as FolderItem)._count?.totalFiles ?? (props.item as FolderItem)._count?.files ?? 0} file` : file ? formatFileSize(BigInt(file.size)) : ""}
-            </p>
-      </div>
-    </div>
-  );
-}
-
-// ============ List Row ============
-function ListRow(props: {
-  item: FileItem | FolderItem & { _isFolder: boolean };
-  selected: boolean;
-  renaming: boolean;
-  selectMode: boolean;
-  onSelect: (e: React.MouseEvent) => void;
-  onToggleSelect: () => void;
-  onOpen: () => void;
-  onContextMenu: (e: React.MouseEvent) => void;
-  onDragStart: (e: React.DragEvent) => void;
-  onDragOver?: (e: React.DragEvent) => void;
-  onDragLeave?: () => void;
-  onDrop?: (e: React.DragEvent) => void;
-  dragOver: boolean;
-  onRename: (name: string) => void;
-  isTrash: boolean;
-}) {
-  const isFolder = "_isFolder" in props.item && props.item._isFolder;
-  const file = !isFolder ? (props.item as FileItem) : null;
-
-  return (
-    <tr
-      draggable={!props.renaming}
-      onDragStart={props.onDragStart}
-      onDragOver={props.onDragOver}
-      onDragLeave={props.onDragLeave}
-      onDrop={props.onDrop}
-      onClick={props.onSelect}
-      onDoubleClick={props.onOpen}
-      onContextMenu={props.onContextMenu}
-      className={`cursor-pointer transition ${props.dragOver ? "bg-blue-100" : props.selected ? "bg-blue-50" : "hover:bg-gray-50"}`}
-    >
-      {props.selectMode && (
-        <td className="px-4 py-2.5"><input type="checkbox" checked={props.selected} onChange={() => props.onToggleSelect()} onClick={(e) => e.stopPropagation()} className="rounded" /></td>
-      )}
-      <td className="px-2 py-2.5">
-        <div className="flex items-center gap-2 overflow-hidden">
-          {isFolder ? (
-            <FolderIcon className="w-5 h-5 text-blue-400 flex-shrink-0" />
-          ) : file?.previewUrl ? (
-            file.mimeType.startsWith("image/") ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={file.previewUrl} alt={file.name} loading="lazy" className="w-5 h-5 object-cover rounded flex-shrink-0" />
-            ) : file.mimeType.startsWith("video/") ? (
-              <video src={file.previewUrl} preload="metadata" muted className="w-5 h-5 object-cover rounded flex-shrink-0" />
-            ) : file.mimeType === "application/pdf" ? (
-              <PDFThumbnail fileId={file.id} size={20} className="w-5 h-5" />
-            ) : (
-              file && getFileIcon(file.mimeType)
-            )
-          ) : (
-            file && getFileIcon(file.mimeType)
-          )}
-          {props.renaming ? (
-            <input
-              autoFocus
-              defaultValue={props.item.name}
-              onBlur={(e) => props.onRename(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") props.onRename((e.target as HTMLInputElement).value);
-                if (e.key === "Escape") props.onRename(props.item.name);
-              }}
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 min-w-0 text-sm px-2 py-0.5 border border-blue-400 rounded outline-none"
-            />
-          ) : (
-            <span className="text-sm text-gray-900 truncate">{props.item.name}</span>
-          )}
-        </div>
-      </td>
-      <td className="px-2 py-2.5 hidden sm:table-cell">
-        {!isFolder && file ? (() => {
-          const tag = getFileTypeTag(file.mimeType, file.extension);
-          return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${tag.color}`}>{tag.label}</span>;
-        })() : <span className="text-xs text-blue-500">FOLDER</span>}
-      </td>
-      <td className="px-2 py-2.5 text-sm text-gray-500 hidden md:table-cell">
-        {isFolder ? "—" : file ? formatFileSize(BigInt(file.size)) : ""}
-      </td>
-      <td className="px-2 py-2.5 text-sm text-gray-500 hidden sm:table-cell">
-        {new Date(props.item.updatedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
-      </td>
-      <td className="px-2 py-2.5">
-        <button onClick={(e) => { e.stopPropagation(); props.onContextMenu(e); }} className="p-1 text-gray-400 hover:text-gray-600">
-          <MoreVerticalIcon className="w-4 h-4" />
-        </button>
-      </td>
-    </tr>
-  );
-}
-
-// ============ Context Menu ============
-function ContextMenu(props: {
-  x: number;
-  y: number;
-  type: "file" | "folder";
-  id: string;
-  onClose: () => void;
-  onStar: (type: "file" | "folder", id: string) => void;
-  onRename: (id: string) => void;
-  onTrash: (fileIds: string[], folderIds: string[]) => void;
-  onRestore: (id: string) => void;
-  onPermanentDelete: (id: string) => void;
-  onPreview: (id: string) => void;
-  isTrash: boolean;
-}) {
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) props.onClose();
-    };
-    document.addEventListener("mousedown", handler);
-    document.addEventListener("contextmenu", handler);
-    return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("contextmenu", handler); };
-  }, [props]);
-
-  // Adjust position to stay in viewport
-  const x = Math.min(props.x, window.innerWidth - 200);
-  const y = Math.min(props.y, window.innerHeight - 300);
-
-  return (
-    <div
-      ref={menuRef}
-      className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 w-48"
-      style={{ left: x, top: y }}
-    >
-      {!props.isTrash ? (
-        <>
-          <MenuItem icon={<EyeIcon className="w-4 h-4" />} label="Preview / Buka" onClick={() => { if (props.type === "file") props.onPreview(props.id); props.onClose(); }} />
-          <MenuItem icon={<DownloadIcon className="w-4 h-4" />} label="Download" onClick={() => { if (props.type === "file") window.location.href = `/api/files/${props.id}/download`; props.onClose(); }} />
-          <Divider />
-          <MenuItem icon={<StarIcon className="w-4 h-4" />} label="Star" onClick={() => { props.onStar(props.type, props.id); props.onClose(); }} />
-          <MenuItem icon={<MoveIcon className="w-4 h-4" />} label="Rename" onClick={() => props.onRename(props.id)} />
-          <Divider />
-          <MenuItem icon={<TrashIcon className="w-4 h-4" />} label="Move to Trash" danger onClick={() => { props.onTrash(props.type === "file" ? [props.id] : [], props.type === "folder" ? [props.id] : []); props.onClose(); }} />
-        </>
-      ) : (
-        <>
-          <MenuItem icon={<ArrowLeftIcon className="w-4 h-4" />} label="Restore" onClick={() => { props.onRestore(props.id); props.onClose(); }} />
-          <Divider />
-          <MenuItem icon={<TrashIcon className="w-4 h-4" />} label="Delete Permanently" danger onClick={() => { props.onPermanentDelete(props.id); props.onClose(); }} />
-        </>
-      )}
-    </div>
-  );
-}
-
-function MenuItem({ icon, label, onClick, danger }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition hover:bg-gray-50 ${danger ? "text-red-600 hover:bg-red-50" : "text-gray-700"}`}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
-function Divider() {
-  return <div className="my-1 border-t border-gray-100" />;
-}
-
-// ============ Conflict Dialog ============
-function ConflictDialog({ files, existingNames, onResolve }: {
-  files: File[];
-  existingNames: string[];
-  onResolve: (resolved: File[]) => void;
-}) {
-  const [skipAllSame, setSkipAllSame] = useState(false);
-  const [resolved, setResolved] = useState<File[]>([]);
-  const [remaining, setRemaining] = useState(files);
-
-  const currentFile = remaining[0];
-  const currentName = currentFile?.name.replace(/^.*\//, "") || "";
-  const isLast = remaining.length <= 1;
-
-  function handleAction(action: "skip" | "overwrite") {
-    let newResolved = [...resolved];
-    if (action === "overwrite") {
-      newResolved.push(currentFile);
-    }
-    // If skipAllSame or overwriteAllSame, resolve all remaining
-    if (skipAllSame && action === "skip") {
-      onResolve(newResolved);
-      return;
-    }
-    if (skipAllSame && action === "overwrite") {
-      newResolved.push(...remaining.slice(1));
-      onResolve(newResolved);
-      return;
-    }
-    if (isLast) {
-      onResolve(newResolved);
-    } else {
-      setResolved(newResolved);
-      setRemaining(remaining.slice(1));
-    }
-  }
-
-  if (!currentFile) {
-    onResolve(resolved);
-    return null;
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-2">File sudah ada</h3>
-        <p className="text-sm text-gray-500 mb-4">
-          <span className="font-medium text-gray-700">{currentName}</span> sudah ada di folder ini.
-          Apa yang ingin Anda lakukan?
-        </p>
-
-        <div className="flex flex-col gap-2">
-          <button
-            onClick={() => handleAction("skip")}
-            className="flex items-center justify-between px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm"
-          >
-            <span>Skip (jangan upload)</span>
-            <span className="text-xs text-gray-400">File lama tetap</span>
-          </button>
-          <button
-            onClick={() => handleAction("overwrite")}
-            className="flex items-center justify-between px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
-          >
-            <span>Overwrite (ganti file lama)</span>
-            <span className="text-xs text-blue-200">Upload yang baru</span>
-          </button>
-        </div>
-
-        {/* Skip All Same checkbox */}
-        <label className="flex items-center gap-2 mt-4 text-sm text-gray-600 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={skipAllSame}
-            onChange={(e) => setSkipAllSame(e.target.checked)}
-            className="rounded"
-          />
-          Terapkan untuk semua file yang sama ({remaining.length} file tersisa)
-        </label>
-
-        <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
-          <span className="text-xs text-gray-400">
-            {remaining.length} dari {files.length} file perlu konfirmasi
-          </span>
-          <button
-            onClick={() => onResolve(resolved)}
-            className="text-sm text-gray-500 hover:text-gray-700"
-          >
-            Skip semua
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

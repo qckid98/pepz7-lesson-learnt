@@ -1,0 +1,69 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e3]:
+      - generic [ref=f2e4]:
+        - img "Logo" [ref=f2e5]
+        - heading "File Sharing" [level=1] [ref=f2e6]
+      - generic [ref=f2e7]:
+        - link "Admin" [ref=f2e8] [cursor=pointer]:
+          - /url: /admin
+        - button "A Administrator" [ref=f2e10]:
+          - generic [ref=f2e11]: A
+          - generic [ref=f2e13]: Administrator
+    - generic [ref=f2e14]:
+      - complementary [ref=f2e15]:
+        - generic [ref=f2e16]:
+          - button "Shared Files" [ref=f2e17]
+          - button "Recent" [ref=f2e21]
+        - paragraph [ref=f2e27]: Folders
+        - generic [ref=f2e28]:
+          - button "Pengumuman" [ref=f2e66]
+          - button "Materi Training" [ref=f2e71]
+      - generic [ref=f2e30]:
+        - generic [ref=f2e31]:
+          - textbox "Cari file & folder..." [ref=f2e36]
+          - 'button "Sort: name (asc)" [ref=f2e37]'
+          - generic [ref=f2e38]:
+            - button "List view" [ref=f2e39]
+            - button "Grid view" [ref=f2e41]
+        - button "Shared Files" [ref=f2e75]
+        - table [ref=f2e76]:
+          - rowgroup [ref=f2e77]:
+            - row [ref=f2e78]:
+              - columnheader "Nama" [ref=f2e79] [cursor=pointer]
+              - columnheader "Tipe" [ref=f2e80]
+              - columnheader "Ukuran" [ref=f2e81] [cursor=pointer]
+              - columnheader "Diubah" [ref=f2e82] [cursor=pointer]
+              - columnheader [ref=f2e83]
+          - rowgroup [ref=f2e84]:
+            - row [ref=f2e85] [cursor=pointer]:
+              - cell "Dokumen Internal" [ref=f2e86]
+              - cell "FOLDER" [ref=f2e91]
+              - cell "—" [ref=f2e92]
+              - cell "15 Jul 2026" [ref=f2e93]
+              - cell [ref=f2e94]:
+                - button [ref=f2e95]
+            - row [ref=f2e100] [cursor=pointer]:
+              - cell "Materi Training" [ref=f2e101]
+              - cell "FOLDER" [ref=f2e106]
+              - cell "—" [ref=f2e107]
+              - cell "15 Jul 2026" [ref=f2e108]
+              - cell [ref=f2e109]:
+                - button [ref=f2e110]
+            - row [ref=f2e115] [cursor=pointer]:
+              - cell "Pengumuman" [ref=f2e116]
+              - cell "FOLDER" [ref=f2e121]
+              - cell "—" [ref=f2e122]
+              - cell "15 Jul 2026" [ref=f2e123]
+              - cell [ref=f2e124]:
+                - button [ref=f2e125]
+            - row [ref=f2e130] [cursor=pointer]:
+              - cell "test-upload.txt" [ref=f2e131]
+              - cell "TXT" [ref=f2e137]
+              - cell "33 B" [ref=f2e138]
+              - cell "15 Jul 2026" [ref=f2e139]
+              - cell [ref=f2e140]:
+                - button [ref=f2e141]
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f2e146] [cursor=pointer]
+  - alert [ref=f2e150]
