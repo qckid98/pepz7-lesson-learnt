@@ -12,6 +12,7 @@ import {
   SearchIcon,
   CheckSquareIcon,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ToolbarProps {
   onNewFolder: () => void;
@@ -88,12 +89,23 @@ export default function ExplorerToolbar(props: ToolbarProps) {
         Sort: {props.sortBy} ({props.sortDir})
       </button>
       <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-        <button onClick={props.onToggleLayout} className={`p-1.5 ${props.layout === "list" ? "bg-gray-100" : ""}`} title="List view">
-          <ListIcon className="w-4 h-4" />
-        </button>
-        <button onClick={props.onToggleLayout} className={`p-1.5 ${props.layout === "grid" ? "bg-gray-100" : ""}`} title="Grid view">
-          <GridIcon className="w-4 h-4" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button onClick={props.onToggleLayout} className={`p-1.5 ${props.layout === "list" ? "bg-gray-100" : "hover:bg-gray-50"}`}>
+              <ListIcon className="w-4 h-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Tampilan List</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button onClick={props.onToggleLayout} className={`p-1.5 ${props.layout === "grid" ? "bg-gray-100" : "hover:bg-gray-50"}`}>
+              <GridIcon className="w-4 h-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Tampilan Grid</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );

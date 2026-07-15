@@ -13,6 +13,7 @@ interface GridCardProps {
   selected: boolean;
   renaming: boolean;
   selectMode: boolean;
+  isAdmin: boolean;
   onSelect: (e: React.MouseEvent) => void;
   onToggleSelect: () => void;
   onOpen: () => void;
@@ -39,13 +40,22 @@ export default function FileGridCard(props: GridCardProps) {
       onDrop={props.onDrop}
       onClick={props.onOpen}
       onContextMenu={props.onContextMenu}
-      className={`relative p-3 rounded-xl border-2 cursor-pointer transition ${
-        props.dragOver ? "border-blue-500 bg-blue-50" : props.selected ? "border-blue-400 bg-blue-50" : "border-transparent hover:border-gray-200 hover:bg-gray-50"
+      className={`group relative p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+        props.dragOver
+          ? "border-blue-500 bg-blue-50 scale-105 shadow-md"
+          : props.selected
+          ? "border-blue-400 bg-blue-50"
+          : "border-transparent hover:border-gray-200 hover:bg-white hover:shadow-sm hover:-translate-y-0.5"
       }`}
     >
-      {props.selectMode && (
-        <div className="absolute top-1.5 left-1.5 z-10">
-          <input type="checkbox" checked={props.selected} onChange={() => props.onToggleSelect()} onClick={(e) => e.stopPropagation()} className="rounded" />
+      {props.isAdmin && props.selectMode && (
+        <div className="absolute top-2 left-2 z-10 animate-in zoom-in-95 duration-200">
+          <input type="checkbox" checked={props.selected} onChange={() => props.onToggleSelect()} onClick={(e) => e.stopPropagation()} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
+        </div>
+      )}
+      {props.isAdmin && !props.selectMode && (
+        <div className={`absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${props.selected ? "opacity-100" : ""}`}>
+          <input type="checkbox" checked={props.selected} onChange={() => props.onToggleSelect()} onClick={(e) => e.stopPropagation()} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
         </div>
       )}
       <div className="flex flex-col items-center gap-2">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useAutoAnimate } from "@formkit/auto-animate/react";
 import { useFileManager, type FileItem, type FolderItem } from "@/hooks/use-file-manager";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useFileSearch } from "@/hooks/use-file-search";
@@ -20,6 +21,8 @@ import UploadProgressPanel from "@/components/file-manager/upload-progress-panel
 import BulkActionBar from "@/components/file-manager/bulk-action-bar";
 import NewFolderInline from "@/components/file-manager/new-folder-inline";
 
+import { TooltipProvider } from "@/components/ui/tooltip";
+
 // ============ Main Component ============
 export default function FileManager({ mode = "admin" }: { mode?: "admin" | "viewer" }) {
   const isAdmin = mode === "admin";
@@ -32,6 +35,8 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
+  const [gridRef] = useAutoAnimate<HTMLDivElement>();
+  const [listRef] = useAutoAnimate<HTMLTableSectionElement>();
 
   // ===== Fetch data =====
   const fetchData = useCallback(async () => {
@@ -236,10 +241,14 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
 
   // ===== Render =====
   return (
-    <div
-      className="flex h-[calc(100vh-4rem)]"
+    <TooltipProvider>
+      <div
+        className="flex h-[calc(100vh-4rem)] relative"
       onDragOver={isAdmin ? (e) => { e.preventDefault(); setIsDragOverPage(true); } : undefined}
-      onDragLeave={isAdmin ? () => setIsDragOverPage(false) : undefined}
+      onDragLeave={isAdmin ? (e) => {
+        // Prevent flicker by only closing if mouse leaves the main window area
+        if (e.clientX === 0 || e.clientY === 0) setIsDragOverPage(false);
+      } : undefined}
       onDrop={isAdmin ? async (e) => {
         e.preventDefault();
         setIsDragOverPage(false);
@@ -315,6 +324,19 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
         }
       } : undefined}
     >
+      {/* Global Drag Overlay */}
+      {isAdmin && isDragOverPage && !dragState.current && (
+        <div className="absolute inset-0 z-[100] bg-blue-600/90 flex flex-col items-center justify-center text-white backdrop-blur-sm animate-in fade-in duration-200 pointer-events-none">
+          <div className="p-8 rounded-full bg-white/20 mb-6 animate-bounce">
+            <UploadIcon className="w-20 h-20" />
+          </div>
+          <h2 className="text-4xl font-bold mb-3 shadow-sm">Drop files here to upload</h2>
+          <p className="text-blue-100 text-lg opacity-90">
+            Files will be uploaded to <span className="font-semibold text-white">{store.currentFolderId ? "this folder" : "My Files"}</span>
+          </p>
+        </div>
+      )}
+
       {/* ===== SIDEBAR (drawer on mobile) ===== */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
@@ -398,24 +420,33 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
         <div ref={listScrollRef} className="flex-1 overflow-y-auto px-3 sm:px-6 py-4">
           {store.loading ? (
             store.layout === "grid" ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 animate-in fade-in duration-300">
                 {Array.from({ length: 12 }).map((_, i) => (
-                  <div key={i} className="flex flex-col items-center gap-2 p-3">
-                    <Skeleton className="w-16 h-16 rounded-md" />
-                    <Skeleton className="w-20 h-3" />
-                    <Skeleton className="w-12 h-2" />
+                  <div key={i} className="flex flex-col items-center gap-3 p-3 border-2 border-transparent rounded-xl">
+                    <Skeleton className="w-16 h-16 rounded-lg opacity-70" />
+                    <div className="space-y-2 w-full flex flex-col items-center">
+                      <Skeleton className="w-3/4 h-3 rounded-full opacity-70" />
+                      <Skeleton className="w-1/2 h-2 rounded-full opacity-50" />
+                    </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <div className="border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm animate-in fade-in duration-300">
+                <div className="flex items-center gap-2 px-2 py-2.5 border-b border-gray-100 bg-gray-50/50">
+                  <Skeleton className="w-4 h-4 rounded-full opacity-50 ml-2" />
+                  <Skeleton className="w-24 h-3 rounded-full opacity-50 ml-2" />
+                </div>
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-2 px-2 py-2.5 border-b border-gray-100">
-                    <Skeleton className="w-5 h-5 rounded" />
-                    <Skeleton className="flex-1 h-4" />
-                    <Skeleton className="w-10 h-3 hidden sm:block" />
-                    <Skeleton className="w-16 h-3 hidden md:block" />
-                    <Skeleton className="w-20 h-3 hidden sm:block" />
+                  <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-gray-50">
+                    <Skeleton className="w-6 h-6 rounded-md opacity-70 flex-shrink-0" />
+                    <div className="flex-1">
+                      <Skeleton className="w-1/3 min-w-[120px] h-4 rounded-full opacity-70" />
+                    </div>
+                    <Skeleton className="w-16 h-4 rounded-full opacity-50 hidden sm:block" />
+                    <Skeleton className="w-20 h-4 rounded-full opacity-50 hidden md:block" />
+                    <Skeleton className="w-24 h-4 rounded-full opacity-50 hidden sm:block" />
+                    <Skeleton className="w-5 h-5 rounded-full opacity-40 ml-2" />
                   </div>
                 ))}
               </div>
@@ -431,7 +462,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
               )}
             </div>
           ) : store.layout === "grid" ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              <div ref={gridRef} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
               {sortedItems.map((item) => (
                 <FileGridCard
                   key={item.id}
@@ -439,6 +470,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
                   selected={store.selectedIds.has(item.id)}
                   renaming={store.renamingId === item.id}
                   selectMode={isAdmin && selectMode}
+                  isAdmin={isAdmin}
                   onSelect={(e) => handleSelectItem(e, item.id, allIds)}
                   onToggleSelect={() => store.toggleSelect(item.id)}
                   onOpen={() => item._isFolder ? handleNavigate(item.id) : setPreviewFileId(item.id)}
@@ -458,7 +490,15 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    {isAdmin && selectMode && <th className="w-10 px-4 py-2"><input type="checkbox" checked={allIds.length > 0 && allIds.every((id) => store.selectedIds.has(id))} onChange={(e) => e.target.checked ? store.selectAll(allIds) : store.clearSelection()} className="rounded" /></th>}
+                    {isAdmin ? (
+                      <th className="w-10 px-4 py-2 group">
+                        <div className={`transition-opacity duration-200 ${allIds.length > 0 && store.selectedIds.size > 0 ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                          <input type="checkbox" checked={allIds.length > 0 && allIds.every((id) => store.selectedIds.has(id))} onChange={(e) => e.target.checked ? store.selectAll(allIds) : store.clearSelection()} className="w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer" />
+                        </div>
+                      </th>
+                    ) : (
+                      <th className="w-2 px-0 py-2"></th>
+                    )}
                     <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer w-full" onClick={() => store.setSort("name")}>Nama</th>
                     <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell whitespace-nowrap">Tipe</th>
                     <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer hidden md:table-cell whitespace-nowrap" onClick={() => store.setSort("size")}>Ukuran</th>
@@ -466,7 +506,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
                     <th className="w-10 px-2 py-2"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody ref={listRef} className="divide-y divide-gray-100">
                   {(() => {
                     const virtualItems = rowVirtualizer.getVirtualItems();
                     const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
@@ -483,6 +523,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
                               selected={store.selectedIds.has(item.id)}
                               renaming={store.renamingId === item.id}
                               selectMode={isAdmin && selectMode}
+                              isAdmin={isAdmin}
                               onSelect={(e) => handleSelectItem(e, item.id, allIds)}
                               onToggleSelect={() => store.toggleSelect(item.id)}
                               onOpen={() => item._isFolder ? handleNavigate(item.id) : setPreviewFileId(item.id)}
@@ -602,5 +643,6 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
         );
       })()}
     </div>
+    </TooltipProvider>
   );
 }
