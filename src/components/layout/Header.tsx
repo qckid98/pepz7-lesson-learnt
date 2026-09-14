@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { signOut } from "next-auth/react";
-import { GlobeIcon, LogOutIcon, UserIcon, MenuIcon, SettingsIcon, SunIcon, MoonIcon } from "lucide-react";
+import { GlobeIcon, LogOutIcon, UserIcon, MenuIcon, SettingsIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-import { useTheme } from "@/hooks/use-theme";
 
 interface HeaderProps {
   title: string;
@@ -29,7 +29,6 @@ export default function Header({
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -54,22 +53,12 @@ export default function Header({
             <MenuIcon className="w-5 h-5" />
           </button>
         )}
-        <img src="/logo.png" alt="Logo" className="h-10 w-auto object-contain flex-shrink-0" />
+        <Image src="/logo.png" alt="Logo" width={100} height={40} className="h-10 w-auto object-contain flex-shrink-0" priority />
         <h1 className="text-base sm:text-lg font-bold truncate" style={{ color: 'var(--foreground)' }}>{title}</h1>
       </div>
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1 sm:gap-2">
-        {/* Dark mode toggle — disabled until fully implemented */}
-        {/* <button
-          onClick={toggleTheme}
-          className="p-1.5 rounded-lg transition hover:bg-gray-100"
-          aria-label="Toggle theme"
-          title={theme === 'light' ? 'Dark mode' : 'Light mode'}
-        >
-          {theme === 'light' ? <MoonIcon className="w-4 h-4 text-gray-500" /> : <SunIcon className="w-4 h-4 text-gray-500" />}
-        </button> */}
-
         {showPublicLink && (
           <Link
             href="/"

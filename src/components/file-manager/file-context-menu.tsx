@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { EyeIcon, DownloadIcon, StarIcon, MoveIcon, TrashIcon, ArrowLeftIcon } from "lucide-react";
 
 interface ContextMenuProps {
@@ -22,6 +22,18 @@ interface ContextMenuProps {
 export default function FileContextMenu(props: ContextMenuProps) {
   const isAdmin = props.isAdmin !== false; // default true for backward compat
   const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x: -1000, y: -1000 }); // hidden initially to prevent flicker
+
+  useEffect(() => {
+    if (menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      let newX = props.x;
+      let newY = props.y;
+      if (props.x + rect.width > window.innerWidth) newX = window.innerWidth - rect.width - 8;
+      if (props.y + rect.height > window.innerHeight) newY = window.innerHeight - rect.height - 8;
+      setPos({ x: newX, y: newY });
+    }
+  }, [props.x, props.y]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -35,14 +47,11 @@ export default function FileContextMenu(props: ContextMenuProps) {
     };
   }, [props]);
 
-  const x = Math.min(props.x, window.innerWidth - 200);
-  const y = Math.min(props.y, window.innerHeight - 300);
-
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 w-48"
-      style={{ left: x, top: y }}
+      className={`fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 w-48 ${pos.x < 0 ? 'opacity-0' : 'opacity-100'}`}
+      style={{ left: Math.max(8, pos.x), top: Math.max(8, pos.y) }}
     >
       {!props.isTrash ? (
         <>

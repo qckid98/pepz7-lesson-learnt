@@ -56,7 +56,7 @@ export default function DocxPreview({ fileId }: DocxPreviewProps) {
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center">
           <div className="w-8 h-8 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin mb-3" />
-          <p className="text-gray-400 text-sm">Memuat dokumen...</p>
+          <p className="text-gray-500 text-sm">Memuat dokumen...</p>
         </div>
       </div>
     );
@@ -67,7 +67,7 @@ export default function DocxPreview({ fileId }: DocxPreviewProps) {
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center max-w-md text-center">
           <FileTypeIcon className="w-12 h-12 text-blue-500 mb-2" />
-          <p className="text-gray-400 text-sm mb-1">Gagal memuat dokumen</p>
+          <p className="text-gray-500 text-sm mb-1">Gagal memuat dokumen</p>
           <p className="text-gray-600 text-xs">{errorMsg}</p>
         </div>
       </div>

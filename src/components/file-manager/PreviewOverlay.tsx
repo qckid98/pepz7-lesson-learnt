@@ -52,6 +52,10 @@ export default function PreviewOverlay({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0 });
+  
+  // Touch pan + pinch zoom handlers for mobile
+  const pinchStartDist = useRef(0);
+  const pinchStartZoom = useRef(1);
 
   const fetchPreviewUrl = useCallback(async () => {
     if (!file) return;
@@ -128,10 +132,6 @@ export default function PreviewOverlay({
   };
   const handleMouseUp = () => setIsPanning(false);
 
-  // Touch pan + pinch zoom handlers for mobile
-  const pinchStartDist = useRef(0);
-  const pinchStartZoom = useRef(1);
-
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1 && zoom > 1) {
       // Single finger pan
@@ -182,7 +182,7 @@ export default function PreviewOverlay({
           {hasPrev && onNavigate && (
             <button
               onClick={() => onNavigate("prev")}
-              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition flex-shrink-0"
+              className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg transition flex-shrink-0"
               title="Sebelumnya (←)"
             >
               <ChevronLeftIcon className="w-5 h-5" />
@@ -191,13 +191,13 @@ export default function PreviewOverlay({
           {hasNext && onNavigate && (
             <button
               onClick={() => onNavigate("next")}
-              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition flex-shrink-0"
+              className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg transition flex-shrink-0"
               title="Berikutnya (→)"
             >
               <ChevronRightIcon className="w-5 h-5" />
             </button>
           )}
-          <FileIcon className="w-4 h-4 text-gray-400 flex-shrink-0 hidden sm:block" />
+          <FileIcon className="w-4 h-4 text-gray-500 flex-shrink-0 hidden sm:block" />
           <span className="text-white font-medium text-xs sm:text-sm truncate">
             {file.name}
           </span>
@@ -208,29 +208,29 @@ export default function PreviewOverlay({
             <div className="flex items-center gap-1 mr-1 sm:mr-2">
               <button
                 onClick={() => setZoom((z) => Math.max(z - 0.25, 0.25))}
-                className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition"
+                className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg transition"
                 title="Zoom out (-)"
               >
                 <ZoomOutIcon className="w-4 h-4" />
               </button>
-              <span className="text-xs text-gray-400 w-10 text-center">{Math.round(zoom * 100)}%</span>
+              <span className="text-xs text-gray-500 w-10 text-center">{Math.round(zoom * 100)}%</span>
               <button
                 onClick={() => setZoom((z) => Math.min(z + 0.25, 5))}
-                className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition"
+                className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg transition"
                 title="Zoom in (+)"
               >
                 <ZoomInIcon className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setRotation((r) => r + 90)}
-                className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition hidden sm:block"
+                className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg transition hidden sm:block"
                 title="Rotate"
               >
                 <RotateCwIcon className="w-4 h-4" />
               </button>
               <button
                 onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); setRotation(0); }}
-                className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition hidden sm:block"
+                className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg transition hidden sm:block"
                 title="Reset (0)"
               >
                 <MaximizeIcon className="w-4 h-4" />
@@ -248,7 +248,7 @@ export default function PreviewOverlay({
           </a>
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition"
+            className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg transition"
             title="Tutup (Esc)"
           >
             <XIcon className="w-5 h-5" />
@@ -262,13 +262,13 @@ export default function PreviewOverlay({
         onClick={(e) => e.stopPropagation()}
       >
         {loading ? (
-          <div className="text-gray-400 flex flex-col items-center">
+          <div className="text-gray-500 flex flex-col items-center">
             <div className="w-10 h-10 border-3 border-gray-600 border-t-blue-500 rounded-full animate-spin mb-3" />
             <p className="text-sm">Memuat preview... {isLargeFile && `(${formatFileSize(BigInt(file.size))})`}</p>
             {isLargeFile && <p className="text-xs text-gray-500 mt-1">File besar, mungkin butuh beberapa saat</p>}
           </div>
         ) : error ? (
-          <div className="text-gray-400 flex flex-col items-center max-w-md text-center">
+          <div className="text-gray-500 flex flex-col items-center max-w-md text-center">
             <FileIcon className="w-16 h-16 text-gray-600 mb-3" />
             {isVeryLargeFile ? (
               <>
@@ -292,7 +292,7 @@ export default function PreviewOverlay({
             </a>
           </div>
         ) : !["image", "video", "audio", "pdf", "text", "spreadsheet", "document", "presentation"].includes(category) ? (
-          <div className="text-gray-400 flex flex-col items-center max-w-md text-center">
+          <div className="text-gray-500 flex flex-col items-center max-w-md text-center">
             <FileIcon className="w-16 h-16 text-gray-600 mb-4" />
             <p className="text-white font-medium text-lg mb-1">{file.name}</p>
             <p className="text-gray-500 text-sm mb-4">
@@ -344,7 +344,7 @@ export default function PreviewOverlay({
         ) : previewUrl && category === "audio" ? (
           <div className="bg-gray-800 p-8 rounded-2xl text-center max-w-md w-full">
             <div className="w-20 h-20 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
-              <FileIcon className="w-10 h-10 text-gray-400" />
+              <FileIcon className="w-10 h-10 text-gray-500" />
             </div>
             <p className="text-white font-medium mb-4">{file.name}</p>
             <audio src={previewUrl} controls autoPlay className="w-full">
@@ -390,7 +390,7 @@ export default function PreviewOverlay({
         </div>
 
         {/* Info row */}
-        <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 text-xs text-gray-400">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 text-xs text-gray-500">
           <div className="flex items-center gap-4">
             <span className="font-bold uppercase">{file.extension}</span>
             <span>{formatFileSize(BigInt(file.size))}</span>

@@ -181,13 +181,13 @@ export function useFileUpload(opts: {
     }, 3000);
   };
 
-  const handleUpload = async (files: FileList) => {
+  const handleUpload = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
     await checkAndUpload(fileArray, opts.currentFolderId);
   };
 
   // ===== Folder upload (preserves directory structure) =====
-  const handleFolderUpload = async (files: FileList) => {
+  const handleFolderUpload = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
     if (fileArray.length === 0) return;
 

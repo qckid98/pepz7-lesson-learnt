@@ -102,7 +102,7 @@ export default function FileListRow(props: ListRowProps) {
         {new Date(props.item.updatedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
       </td>
       <td className="px-2 py-2.5">
-        <button onClick={(e) => { e.stopPropagation(); props.onContextMenu(e); }} className="p-1 text-gray-400 hover:text-gray-600">
+        <button onClick={(e) => { e.stopPropagation(); props.onContextMenu(e); }} className="p-1 text-gray-500 hover:text-gray-600">
           <MoreVerticalIcon className="w-4 h-4" />
         </button>
       </td>

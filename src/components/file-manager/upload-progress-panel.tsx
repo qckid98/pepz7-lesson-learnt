@@ -20,7 +20,7 @@ export default function UploadProgressPanel({ uploads, onClear }: UploadProgress
         </h3>
         <button
           onClick={onClear}
-          className="text-gray-400 hover:text-gray-600 text-xs"
+          className="text-gray-500 hover:text-gray-600 text-xs"
         >
           {uploads.every((u) => u.status !== "uploading") ? "Tutup" : ""}
         </button>
@@ -30,7 +30,7 @@ export default function UploadProgressPanel({ uploads, onClear }: UploadProgress
           <div key={u.id} className="px-2 py-2 rounded-lg bg-gray-50">
             <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center gap-2 min-w-0">
-                <FileIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                <FileIcon className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
                 <span className="text-xs font-medium text-gray-900 truncate">{u.name}</span>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">

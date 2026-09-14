@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -22,6 +22,16 @@ import BulkActionBar from "@/components/file-manager/bulk-action-bar";
 import NewFolderInline from "@/components/file-manager/new-folder-inline";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ============ Main Component ============
 export default function FileManager({ mode = "admin" }: { mode?: "admin" | "viewer" }) {
@@ -35,6 +45,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; msg: string; onConfirm: () => void }>({ open: false, msg: "", onConfirm: () => {} });
   const [gridRef] = useAutoAnimate<HTMLDivElement>();
   const [listRef] = useAutoAnimate<HTMLTableSectionElement>();
 
@@ -55,7 +66,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
         const data = await res.json();
         store.setData(data.files || [], data.folders || []);
       } else {
-        // "all" â€” browse folder
+        // "all" — browse folder
         if (store.currentFolderId) {
           const res = await fetch(`/api/folders/${store.currentFolderId}`);
           const data = await res.json();
@@ -103,7 +114,12 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
     handleSelect: handleSelectItem,
     handleBulkRestore,
     handleBulkPermanentDelete,
-  } = useFileOperations({ store, fetchData });
+    handleEmptyTrash,
+  } = useFileOperations({ 
+    store, 
+    fetchData,
+    confirmAction: (msg, onOk) => setConfirmState({ open: true, msg, onConfirm: onOk })
+  });
 
   useEffect(() => {
     fetchData();
@@ -129,7 +145,9 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
       }
       crumbs.unshift({ id: null, name: rootLabel });
       setBreadcrumbs(crumbs);
-    } catch { /* ignore */ }
+    } catch {
+      import("sonner").then((m) => m.toast.error("Gagal memuat path folder"));
+    }
   }, [rootLabel, setBreadcrumbs]);
 
   useEffect(() => {
@@ -163,7 +181,9 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
       setNewFolderName("");
       setShowNewFolder(false);
       fetchData();
-    } catch { /* ignore */ }
+    } catch {
+      import("sonner").then((m) => m.toast.error("Gagal membuat folder"));
+    }
   };
 
   // ===== Context menu handler =====
@@ -207,7 +227,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
   const allIds = sortedItems.map((i) => i.id);
   const selectedCount = store.selectedIds.size;
 
-  // Virtualizer for list view — handles 1000+ rows smoothly
+  // Virtualizer for list view � handles 1000+ rows smoothly
   const listScrollRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: sortedItems.length,
@@ -256,12 +276,12 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
         // Check if this is an internal drag (file/folder move), not external file drop
         const dragData = dragState.current;
         if (dragData) {
-          // Internal drag — don't trigger upload, let folder drop handlers deal with it
+          // Internal drag � don't trigger upload, let folder drop handlers deal with it
           dragState.current = null;
           return;
         }
 
-        // External file drop â€” handle upload
+        // External file drop — handle upload
         const items = e.dataTransfer.items;
         const droppedFiles: File[] = [];
 
@@ -269,14 +289,18 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
         if (items && items.length > 0) {
           const traversePromises: Promise<void>[] = [];
 
-          const traverseEntry = (entry: FileSystemEntry, path: string = ""): Promise<void> => {
-            return new Promise((resolve) => {
-              if (entry.isFile) {
-                (entry as FileSystemFileEntry).file((file: File) => {
-                  droppedFiles.push(file);
-                  resolve();
-                }, () => resolve());
-              } else if (entry.isDirectory) {
+            const traverseEntry = (entry: FileSystemEntry, path: string = ""): Promise<void> => {
+              return new Promise((resolve) => {
+                if (entry.isFile) {
+                  (entry as FileSystemFileEntry).file((file: File) => {
+                    Object.defineProperty(file, 'webkitRelativePath', {
+                      value: path + file.name,
+                      writable: false
+                    });
+                    droppedFiles.push(file);
+                    resolve();
+                  }, () => resolve());
+                } else if (entry.isDirectory) {
                 const dirReader = (entry as FileSystemDirectoryEntry).createReader();
                 const allEntries: FileSystemEntry[] = [];
                 const readEntries = () => {
@@ -310,10 +334,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
           await Promise.all(traversePromises);
 
           if (droppedFiles.length > 0) {
-            // Create a FileList-like object
-            const dt = new DataTransfer();
-            droppedFiles.forEach((f) => dt.items.add(f));
-            handleFolderUpload(dt.files);
+            handleFolderUpload(droppedFiles);
             return;
           }
         }
@@ -363,6 +384,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
           selectMode={selectMode}
           onToggleSelectMode={() => { setSelectMode(!selectMode); if (selectMode) store.clearSelection(); }}
           isAdmin={isAdmin}
+          onEmptyTrash={handleEmptyTrash}
         />
 
         {/* Breadcrumb */}
@@ -378,7 +400,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
             <>
               {store.breadcrumbs.map((crumb, i) => (
                 <div key={i} className="flex items-center gap-1">
-                  {i > 0 && <ChevronRightIcon className="w-4 h-4 text-gray-400" />}
+                  {i > 0 && <ChevronRightIcon className="w-4 h-4 text-gray-500" />}
                   <button
                     onClick={() => i === 0 ? handleNavigate(null) : handleNavigate(crumb.id)}
                     className={`hover:text-blue-600 ${i === store.breadcrumbs.length - 1 ? "font-semibold text-gray-900" : "text-gray-500"}`}
@@ -452,7 +474,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
               </div>
             )
           ) : sortedItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+            <div className="flex flex-col items-center justify-center h-40 text-gray-500">
               <FolderIcon className="w-12 h-12 mb-2 text-gray-300" />
               <p className="mb-3">{searchResults && searchQuery.trim() ? `Tidak ditemukan hasil untuk "${searchQuery}"` : store.viewMode === "trash" ? "Tempat sampah kosong" : "Belum ada file atau folder"}</p>
               {isAdmin && store.viewMode === "all" && !searchResults && (
@@ -564,7 +586,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
             type="file"
             multiple
             className="hidden"
-            // @ts-expect-error — webkitdirectory is non-standard but widely supported
+            // @ts-expect-error � webkitdirectory is non-standard but widely supported
             webkitdirectory=""
             directory=""
             onChange={(e) => {
@@ -642,6 +664,19 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
           />
         );
       })()}
+      {/* Confirm dialog */}
+      <AlertDialog open={confirmState.open} onOpenChange={(open) => !open && setConfirmState(s => ({ ...s, open: false }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Konfirmasi</AlertDialogTitle>
+            <AlertDialogDescription>{confirmState.msg}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { confirmState.onConfirm(); setConfirmState(s => ({ ...s, open: false })); }} className="bg-red-600 hover:bg-red-700">Lanjutkan</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
     </TooltipProvider>
   );

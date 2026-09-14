@@ -128,11 +128,11 @@ export default function ExplorerSidebar({ onNavigate, onRefresh, open, onClose, 
 
       <div className="border-t border-gray-100" />
       <div className="px-3 py-2">
-        <p className="text-xs font-semibold text-gray-400 uppercase mb-1 px-2">Folders</p>
+        <p className="text-xs font-semibold text-gray-500 uppercase mb-1 px-2">Folders</p>
       </div>
       <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-0.5">
         {tree.length === 0 ? (
-          <p className="text-xs text-gray-400 px-2 py-2">Belum ada folder</p>
+          <p className="text-xs text-gray-500 px-2 py-2">Belum ada folder</p>
         ) : (
           renderTreeNodes(tree)
         )}

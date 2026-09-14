@@ -11,8 +11,9 @@ import type { FileManagerState } from "@/hooks/use-file-manager";
 export function useFileOperations(opts: {
   store: FileManagerState;
   fetchData: () => void;
+  confirmAction?: (msg: string, onOk: () => void) => void;
 }) {
-  const { store, fetchData } = opts;
+  const { store, fetchData, confirmAction = (msg, onOk) => { if (window.confirm(msg)) onOk(); } } = opts;
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const handleRename = async (id: string, type: "file" | "folder", newName: string) => {
@@ -44,21 +45,23 @@ export function useFileOperations(opts: {
     const confirmMsg = hasFolders
       ? `Pindahkan ${fileIds.length + folderIds.length} item ke tempat sampah? Folder beserta semua isinya akan dipindahkan.`
       : `Pindahkan ${fileIds.length} file ke tempat sampah?`;
-    if (!confirm(confirmMsg)) return;
-    setDeleteLoading(true);
-    try {
-      await fetch("/api/files/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "trash", fileIds, folderIds }),
-      });
-      toast.success(`${fileIds.length + folderIds.length} item moved to trash`);
-    } catch {
-      toast.error("Failed to move to trash");
-    }
-    store.clearSelection();
-    setDeleteLoading(false);
-    fetchData();
+    
+    confirmAction(confirmMsg, async () => {
+      setDeleteLoading(true);
+      try {
+        await fetch("/api/files/bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "trash", fileIds, folderIds }),
+        });
+        toast.success(`${fileIds.length + folderIds.length} item moved to trash`);
+      } catch {
+        toast.error("Failed to move to trash");
+      }
+      store.clearSelection();
+      setDeleteLoading(false);
+      fetchData();
+    });
   };
 
   const handleRestore = async (id: string) => {
@@ -68,10 +71,11 @@ export function useFileOperations(opts: {
   };
 
   const handlePermanentDelete = async (id: string) => {
-    if (!confirm("Hapus permanen? Tidak bisa dikembalikan.")) return;
-    await fetch(`/api/trash/${id}`, { method: "DELETE" });
-    toast.success("Deleted permanently");
-    fetchData();
+    confirmAction("Hapus permanen? Tidak bisa dikembalikan.", async () => {
+      await fetch(`/api/trash/${id}`, { method: "DELETE" });
+      toast.success("Deleted permanently");
+      fetchData();
+    });
   };
 
   const handleMove = async (fileIds: string[], folderIds: string[], targetId: string | null) => {
@@ -134,13 +138,27 @@ export function useFileOperations(opts: {
   };
 
   const handleBulkPermanentDelete = async (ids: string[], count: number) => {
-    if (!confirm(`Hapus permanen ${count} item? Tidak bisa dikembalikan.`)) return;
-    for (const id of ids) {
-      await fetch(`/api/trash/${id}`, { method: "DELETE" });
-    }
-    toast.success(`${count} item deleted permanently`);
-    store.clearSelection();
-    fetchData();
+    confirmAction(`Hapus permanen ${count} item? Tidak bisa dikembalikan.`, async () => {
+      for (const id of ids) {
+        await fetch(`/api/trash/${id}`, { method: "DELETE" });
+      }
+      toast.success(`${count} item deleted permanently`);
+      store.clearSelection();
+      fetchData();
+    });
+  };
+
+  const handleEmptyTrash = async () => {
+    confirmAction("Kosongkan semua file di Trash? Aksi ini tidak bisa dikembalikan.", async () => {
+      try {
+        await fetch("/api/trash/empty", { method: "DELETE" });
+        toast.success("Trash berhasil dikosongkan");
+        store.clearSelection();
+        fetchData();
+      } catch {
+        toast.error("Gagal mengosongkan trash");
+      }
+    });
   };
 
   return {
@@ -154,5 +172,6 @@ export function useFileOperations(opts: {
     handleSelect,
     handleBulkRestore,
     handleBulkPermanentDelete,
+    handleEmptyTrash,
   };
 }

@@ -31,6 +31,7 @@ interface ToolbarProps {
   selectMode?: boolean;
   onToggleSelectMode?: () => void;
   isAdmin?: boolean;
+  onEmptyTrash?: () => void;
 }
 
 export default function ExplorerToolbar(props: ToolbarProps) {
@@ -42,19 +43,23 @@ export default function ExplorerToolbar(props: ToolbarProps) {
           <MenuIcon className="w-5 h-5" />
         </button>
       )}
-      {isAdmin && props.viewMode !== "trash" && (
+      {isAdmin && (
         <>
-          <button onClick={props.onUploadClick} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-blue-600 text-white text-xs sm:text-sm rounded-lg hover:bg-blue-700 transition">
-            <UploadIcon className="w-4 h-4" /> <span className="hidden sm:inline">Upload</span>
-          </button>
-          {props.onFolderUploadClick && (
-            <button onClick={props.onFolderUploadClick} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg hover:bg-gray-50 transition">
-              <FolderIcon className="w-4 h-4" /> <span className="hidden sm:inline">Upload Folder</span>
-            </button>
+          {props.viewMode !== "trash" && (
+            <>
+              <button onClick={props.onUploadClick} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-blue-600 text-white text-xs sm:text-sm rounded-lg hover:bg-blue-700 transition">
+                <UploadIcon className="w-4 h-4" /> <span className="hidden sm:inline">Upload</span>
+              </button>
+              {props.onFolderUploadClick && (
+                <button onClick={props.onFolderUploadClick} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg hover:bg-gray-50 transition">
+                  <FolderIcon className="w-4 h-4" /> <span className="hidden sm:inline">Upload Folder</span>
+                </button>
+              )}
+              <button onClick={props.onNewFolder} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg hover:bg-gray-50 transition">
+                <PlusIcon className="w-4 h-4" /> <span className="hidden sm:inline">Folder Baru</span>
+              </button>
+            </>
           )}
-          <button onClick={props.onNewFolder} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg hover:bg-gray-50 transition">
-            <PlusIcon className="w-4 h-4" /> <span className="hidden sm:inline">Folder Baru</span>
-          </button>
           {props.onToggleSelectMode && (
             <button
               onClick={props.onToggleSelectMode}
@@ -67,11 +72,16 @@ export default function ExplorerToolbar(props: ToolbarProps) {
               <CheckSquareIcon className="w-4 h-4" /> <span className="hidden sm:inline">{props.selectMode ? "Selesai" : "Pilih"}</span>
             </button>
           )}
+          {props.viewMode === "trash" && props.onEmptyTrash && (
+            <button onClick={props.onEmptyTrash} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-red-200 text-red-600 text-xs sm:text-sm rounded-lg hover:bg-red-50 transition">
+              <TrashIcon className="w-4 h-4" /> <span className="hidden sm:inline">Kosongkan Trash</span>
+            </button>
+          )}
         </>
       )}
       {props.viewMode !== "trash" && props.onSearchChange && (
         <div className="relative flex-1 max-w-xs">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <input
             type="text"
             value={props.searchQuery || ""}

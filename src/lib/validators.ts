@@ -21,6 +21,7 @@ export const ALLOWED_FILE_TYPES: Record<string, { maxSize: number }> = {
   "image/gif": { maxSize: MAX_FILE_SIZE },
   "image/webp": { maxSize: MAX_FILE_SIZE },
   "image/svg+xml": { maxSize: MAX_FILE_SIZE },
+  "image/tiff": { maxSize: MAX_FILE_SIZE },
   // Video
   "video/mp4": { maxSize: MAX_FILE_SIZE },
   "video/webm": { maxSize: MAX_FILE_SIZE },
@@ -98,7 +99,7 @@ export function getFileCategory(mimeType: string, extension?: string): string {
   const ext = (extension || "").toLowerCase();
   const mt = (mimeType || "").toLowerCase();
 
-  if (["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"].includes(ext)) return "image";
+  if (["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "tiff", "tif"].includes(ext)) return "image";
   if (["mp4", "webm", "mov", "avi", "mkv"].includes(ext)) return "video";
   if (["mp3", "wav", "ogg", "flac", "aac"].includes(ext)) return "audio";
   if (ext === "pdf") return "pdf";

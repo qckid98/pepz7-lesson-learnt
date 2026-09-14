@@ -59,7 +59,7 @@ export default function ConflictDialog({ files, existingNames, onResolve }: Conf
             className="flex items-center justify-between px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm"
           >
             <span>Skip (jangan upload)</span>
-            <span className="text-xs text-gray-400">File lama tetap</span>
+            <span className="text-xs text-gray-500">File lama tetap</span>
           </button>
           <button
             onClick={() => handleAction("overwrite")}
@@ -81,7 +81,7 @@ export default function ConflictDialog({ files, existingNames, onResolve }: Conf
         </label>
 
         <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-gray-500">
             {remaining.length} dari {files.length} file perlu konfirmasi
           </span>
           <button

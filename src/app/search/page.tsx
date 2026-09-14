@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   SearchIcon,
@@ -47,16 +48,6 @@ export default function SearchPage() {
   const [searched, setSearched] = useState(false);
   const [count, setCount] = useState(0);
 
-  // Read initial query from URL params
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const q = params.get("q");
-    if (q) {
-      setQuery(q);
-      performSearch(q, type);
-    }
-  }, []);
-
   const performSearch = useCallback(
     async (searchQuery: string, searchType: string) => {
       if (!searchQuery || searchQuery.trim().length < 2) return;
@@ -81,6 +72,17 @@ export default function SearchPage() {
     },
     []
   );
+
+  // Read initial query from URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q");
+    if (q) {
+      setTimeout(() => setQuery(q), 0);
+      performSearch(q, type);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

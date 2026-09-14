@@ -71,7 +71,7 @@ export default function ExcelPreview({ fileId }: ExcelPreviewProps) {
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center">
           <div className="w-8 h-8 border-2 border-gray-600 border-t-green-500 rounded-full animate-spin mb-3" />
-          <p className="text-gray-400 text-sm">Memuat spreadsheet...</p>
+          <p className="text-gray-500 text-sm">Memuat spreadsheet...</p>
         </div>
       </div>
     );
@@ -82,7 +82,7 @@ export default function ExcelPreview({ fileId }: ExcelPreviewProps) {
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center max-w-md text-center">
           <FileTypeIcon className="w-12 h-12 text-green-500 mb-2" />
-          <p className="text-gray-400 text-sm">Gagal memuat spreadsheet</p>
+          <p className="text-gray-500 text-sm">Gagal memuat spreadsheet</p>
           <p className="text-gray-600 text-xs mt-1">{errorMsg}</p>
         </div>
       </div>
@@ -92,7 +92,7 @@ export default function ExcelPreview({ fileId }: ExcelPreviewProps) {
   if (sheets.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-gray-400 text-sm">File kosong</p>
+        <p className="text-gray-500 text-sm">File kosong</p>
       </div>
     );
   }
@@ -138,7 +138,7 @@ export default function ExcelPreview({ fileId }: ExcelPreviewProps) {
           <tbody>
             {current.rows.map((row, ri) => (
               <tr key={ri} className={ri === 0 ? "bg-green-50 font-medium" : (ri % 2 === 0 ? "bg-white" : "bg-gray-50")}>
-                <td className="px-2 py-1.5 border-r border-gray-200 text-gray-400 text-right w-8 sm:w-10 sticky left-0 bg-inherit">
+                <td className="px-2 py-1.5 border-r border-gray-200 text-gray-500 text-right w-8 sm:w-10 sticky left-0 bg-inherit">
                   {ri + 1}
                 </td>
                 {row.map((cell, ci) => {
@@ -168,7 +168,7 @@ export default function ExcelPreview({ fileId }: ExcelPreviewProps) {
       </div>
 
       {/* Footer */}
-      <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-200 text-xs text-gray-400 flex-shrink-0">
+      <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex-shrink-0">
         {current.rows.length} baris • {current.rows[0]?.length || 0} kolom
         {current.merges.length > 0 && ` • ${current.merges.length} merged cells`}
         {sheets.length > 1 && ` • Sheet ${activeSheet + 1}/${sheets.length}`}

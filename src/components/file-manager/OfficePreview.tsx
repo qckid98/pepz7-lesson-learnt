@@ -196,7 +196,7 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="flex flex-col items-center">
             <div className={`w-8 h-8 border-2 border-gray-600 border-t-current rounded-full animate-spin mb-3 ${accentColor}`} />
-            <p className="text-gray-400 text-sm">
+            <p className="text-gray-500 text-sm">
               Memuat {type === "xlsx" ? "spreadsheet" : type === "docx" ? "dokumen" : "presentasi"}...
             </p>
           </div>
@@ -210,7 +210,7 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center max-w-md text-center">
           <FileTypeIcon className={`w-12 h-12 mb-2 ${accentColor}`} />
-          <p className="text-gray-400 text-sm">
+          <p className="text-gray-500 text-sm">
             Gagal memuat {type === "xlsx" ? "spreadsheet" : type === "docx" ? "dokumen" : "presentasi"}
           </p>
           <p className="text-gray-600 text-xs mt-1">{errorMsg}</p>
@@ -232,7 +232,7 @@ export default function OfficePreview({ fileId, type }: OfficePreviewProps) {
             <ChevronLeftIcon className="w-4 h-4" />
             <span className="hidden sm:inline">Sebelumnya</span>
           </button>
-          <span className="text-xs sm:text-sm text-gray-400">
+          <span className="text-xs sm:text-sm text-gray-500">
             {label} {currentIdx + 1} / {totalCount}
           </span>
           <button

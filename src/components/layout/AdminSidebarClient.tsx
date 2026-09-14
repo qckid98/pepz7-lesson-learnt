@@ -59,13 +59,13 @@ export default function AdminSidebarClient({ navItems, userName }: AdminSidebarC
         {/* Mobile close button */}
         <button
           onClick={() => setOpen(false)}
-          className="lg:hidden absolute top-3 right-3 p-1.5 text-gray-400 hover:text-gray-600"
+          className="lg:hidden absolute top-3 right-3 p-1.5 text-gray-500 hover:text-gray-600"
         >
           <XIcon className="w-5 h-5" />
         </button>
 
         <div className="p-4 border-b border-gray-200 flex-shrink-0">
-          <span className="text-xs font-semibold text-gray-400 uppercase px-2">Menu</span>
+          <span className="text-xs font-semibold text-gray-500 uppercase px-2">Menu</span>
         </div>
 
         <nav className="p-3 space-y-1 flex-1">

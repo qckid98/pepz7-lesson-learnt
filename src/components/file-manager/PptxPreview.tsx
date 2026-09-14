@@ -24,6 +24,12 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
   const [error, setError] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  function escapeHtml(text: string): string {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -167,18 +173,12 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
     return () => { cancelled = true; };
   }, [fileId]);
 
-  function escapeHtml(text: string): string {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center">
           <div className="w-8 h-8 border-2 border-gray-600 border-t-orange-500 rounded-full animate-spin mb-3" />
-          <p className="text-gray-400 text-sm">Memuat presentasi...</p>
+          <p className="text-gray-500 text-sm">Memuat presentasi...</p>
         </div>
       </div>
     );
@@ -189,7 +189,7 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center max-w-md text-center">
           <FileTypeIcon className="w-12 h-12 text-orange-500 mb-2" />
-          <p className="text-gray-400 text-sm">Gagal memuat presentasi</p>
+          <p className="text-gray-500 text-sm">Gagal memuat presentasi</p>
           <p className="text-gray-600 text-xs mt-1">{errorMsg}</p>
         </div>
       </div>
@@ -199,7 +199,7 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
   if (slides.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-gray-400 text-sm">File kosong</p>
+        <p className="text-gray-500 text-sm">File kosong</p>
       </div>
     );
   }
@@ -230,7 +230,7 @@ export default function PptxPreview({ fileId }: PptxPreviewProps) {
           <span className="hidden sm:inline">Sebelumnya</span>
         </button>
 
-        <span className="text-xs sm:text-sm text-gray-400">
+        <span className="text-xs sm:text-sm text-gray-500">
           Slide {currentSlide + 1} / {slides.length}
         </span>
 

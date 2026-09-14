@@ -8,7 +8,7 @@ export function getFileIcon(mimeType: string) {
     case "video": return <VideoIcon className="w-5 h-5 text-purple-500" />;
     case "audio": return <MusicIcon className="w-5 h-5 text-pink-500" />;
     case "pdf": return <FileTypeIcon className="w-5 h-5 text-red-500" />;
-    default: return <FileIcon className="w-5 h-5 text-gray-400" />;
+    default: return <FileIcon className="w-5 h-5 text-gray-500" />;
   }
 }
 
