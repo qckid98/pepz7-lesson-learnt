@@ -114,18 +114,13 @@ export async function POST(request: NextRequest) {
               
               if (!response.Body) continue;
               
-              const bodyStream = response.Body as Readable;
+              const byteArray = await response.Body.transformToByteArray();
+              const buffer = Buffer.from(byteArray);
               
               const folderPath = await buildFolderPath(file.folderId);
               const zipPath = folderPath ? `${folderPath}/${file.name}` : file.name;
       
-              archive.append(bodyStream, { name: zipPath });
-              
-              await new Promise<void>((resolve, reject) => {
-                bodyStream.on("end", resolve);
-                bodyStream.on("error", reject);
-              });
-
+              archive.append(buffer, { name: zipPath });
             } catch (e) {
               console.error(`Failed to add ${file.name} to ZIP:`, e);
             }
