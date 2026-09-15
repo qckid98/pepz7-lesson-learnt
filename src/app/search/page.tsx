@@ -11,6 +11,7 @@ import {
   FilterIcon,
 } from "lucide-react";
 import { formatFileSize } from "@/lib/validators";
+import { toast } from "sonner";
 
 interface SearchResult {
   id: string;
@@ -225,6 +226,7 @@ export default function SearchPage() {
                       </Link>
                       <a
                         href={`/api/files/${file.id}/download`}
+                        onClick={(e) => { e.stopPropagation(); toast.info("Download dimulai..."); }}
                         className="flex items-center gap-1 text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition"
                       >
                         <DownloadIcon className="w-3 h-3" />

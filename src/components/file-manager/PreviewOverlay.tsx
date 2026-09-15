@@ -13,6 +13,7 @@ import {
   RotateCwIcon,
   MaximizeIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import { formatFileSize, getFileCategory } from "@/lib/validators";
 import OfficePreview from "@/components/file-manager/OfficePreview";
 import DocxPreview from "@/components/file-manager/DocxPreview";
@@ -240,7 +241,7 @@ export default function PreviewOverlay({
           {/* Download — hidden on mobile, shown in bottom bar */}
           <a
             href={`/api/files/${file.id}/download`}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); toast.info("Download dimulai..."); }}
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition"
           >
             <DownloadIcon className="w-4 h-4" />
@@ -282,11 +283,12 @@ export default function PreviewOverlay({
               </>
             ) : (
               <p className="text-sm">Gagal memuat preview</p>
-            )}
-            <a
-              href={`/api/files/${file.id}/download`}
-              className="flex items-center gap-2 mt-2 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
-            >
+              )}
+              <a
+                href={`/api/files/${file.id}/download`}
+                onClick={(e) => { e.stopPropagation(); toast.info("Download dimulai..."); }}
+                className="flex items-center gap-2 mt-2 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
+              >
               <DownloadIcon className="w-5 h-5" />
               Download File
             </a>
@@ -298,10 +300,11 @@ export default function PreviewOverlay({
             <p className="text-gray-500 text-sm mb-4">
               Preview tidak tersedia untuk tipe file ini (.{file.extension.toUpperCase()})
             </p>
-            <a
-              href={`/api/files/${file.id}/download`}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
-            >
+              <a
+                href={`/api/files/${file.id}/download`}
+                onClick={(e) => { e.stopPropagation(); toast.info("Download dimulai..."); }}
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
+              >
               <DownloadIcon className="w-5 h-5" />
               Download File
             </a>
@@ -381,7 +384,7 @@ export default function PreviewOverlay({
         <div className="sm:hidden p-3">
           <a
             href={`/api/files/${file.id}/download`}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); toast.info("Download dimulai..."); }}
             className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
           >
             <DownloadIcon className="w-5 h-5" />

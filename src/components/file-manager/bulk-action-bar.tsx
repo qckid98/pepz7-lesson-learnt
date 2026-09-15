@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { FileItem, FolderItem } from "@/hooks/use-file-manager";
 
 interface BulkActionBarProps {
@@ -16,6 +17,8 @@ interface BulkActionBarProps {
 }
 
 export default function BulkActionBar(props: BulkActionBarProps) {
+  const [isDownloading, setIsDownloading] = useState(false);
+
   if (props.selectedCount === 0) return null;
 
   const selectedIdArray = Array.from(props.selectedIds);
@@ -24,26 +27,31 @@ export default function BulkActionBar(props: BulkActionBarProps) {
 
   const handleZipDownload = async () => {
     if (selectedFileIds.length + selectedFolderIds.length === 0) return;
-    const res = await fetch("/api/files/bulk-download", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileIds: selectedFileIds, folderIds: selectedFolderIds }),
-    });
+    setIsDownloading(true);
+    try {
+      const res = await fetch("/api/files/bulk-download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileIds: selectedFileIds, folderIds: selectedFolderIds }),
+      });
 
-    if (!res.ok) {
-      const { toast } = await import("sonner");
-      const data = await res.json().catch(() => null);
-      toast.error(data?.error || "Gagal mengunduh ZIP");
-      return;
+      if (!res.ok) {
+        const { toast } = await import("sonner");
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error || "Gagal mengunduh ZIP");
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "download.zip";
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsDownloading(false);
     }
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "download.zip";
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   return (
@@ -51,8 +59,13 @@ export default function BulkActionBar(props: BulkActionBarProps) {
       <span className="font-medium text-blue-700">{props.selectedCount} dipilih</span>
       {props.viewMode !== "trash" && (
         <>
-          <button onClick={handleZipDownload} className="text-blue-600 hover:underline">
-            Download ZIP
+          <button 
+            onClick={handleZipDownload} 
+            disabled={isDownloading}
+            className={`flex items-center gap-1.5 ${isDownloading ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:underline'}`}
+          >
+            {isDownloading && <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />}
+            {isDownloading ? "Menyiapkan ZIP..." : "Download ZIP"}
           </button>
           {props.isAdmin && (
             <button

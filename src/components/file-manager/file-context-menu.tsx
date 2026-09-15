@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { EyeIcon, DownloadIcon, StarIcon, MoveIcon, TrashIcon, ArrowLeftIcon } from "lucide-react";
+import { toast } from "sonner";
 
 interface ContextMenuProps {
   x: number;
@@ -57,7 +58,7 @@ export default function FileContextMenu(props: ContextMenuProps) {
         <>
           <MenuItem icon={<EyeIcon className="w-4 h-4" />} label="Preview / Buka" onClick={() => { if (props.type === "file") props.onPreview(props.id); props.onClose(); }} />
           {props.type === "file" && (
-            <MenuItem icon={<DownloadIcon className="w-4 h-4" />} label="Download" onClick={() => { window.location.href = `/api/files/${props.id}/download`; props.onClose(); }} />
+            <MenuItem icon={<DownloadIcon className="w-4 h-4" />} label="Download" onClick={() => { toast.info("Download dimulai..."); window.location.href = `/api/files/${props.id}/download`; props.onClose(); }} />
           )}
           {isAdmin && (
             <>
