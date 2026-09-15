@@ -125,6 +125,17 @@ export default function ExplorerSidebar({ onNavigate, onRefresh, open, onClose, 
         open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       } ${store.sidebarExpanded ? "w-60" : "w-16"}`}
     >
+      {/* Collapse button at top */}
+      <div className={`p-3 border-b border-gray-100 hidden lg:flex ${store.sidebarExpanded ? "justify-end" : "justify-center"}`}>
+        <button
+          onClick={() => store.setSidebarExpanded(!store.sidebarExpanded)}
+          className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
+          title={store.sidebarExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
+        >
+          {store.sidebarExpanded ? <PanelLeftCloseIcon className="w-5 h-5" /> : <PanelLeftOpenIcon className="w-5 h-5" />}
+        </button>
+      </div>
+
       <div className={`p-3 space-y-0.5 flex flex-col ${store.sidebarExpanded ? "items-stretch" : "items-center"}`}>
         {navItems.map((item) => (
           <button
@@ -174,16 +185,6 @@ export default function ExplorerSidebar({ onNavigate, onRefresh, open, onClose, 
       ) : (
         <div className="flex-1" />
       )}
-
-      <div className="p-3 border-t border-gray-100 hidden lg:flex justify-center">
-        <button
-          onClick={() => store.setSidebarExpanded(!store.sidebarExpanded)}
-          className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
-          title={store.sidebarExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
-        >
-          {store.sidebarExpanded ? <PanelLeftCloseIcon className="w-5 h-5" /> : <PanelLeftOpenIcon className="w-5 h-5" />}
-        </button>
-      </div>
     </aside>
   );
 }
