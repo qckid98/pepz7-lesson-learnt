@@ -86,29 +86,29 @@ export async function POST(request: NextRequest) {
     const archive = (archiver as any).create("zip", { zlib: { level: 5 } });
     archive.pipe(passthrough);
 
-    // Add files to ZIP
-    for (const file of files) {
-      try {
-        const command = new GetObjectCommand({
-          Bucket: process.env.S3_BUCKET || "file-sharing-prod",
-          Key: file.s3Key,
-        });
-        const response = await s3Client.send(command);
-        const body = response.Body as Readable;
-
-        const folderPath = await buildFolderPath(file.folderId);
-        const zipPath = folderPath ? `${folderPath}/${file.name}` : file.name;
-
-        // Track used names to avoid duplicates
-        let uniquePath = zipPath;
-        let counter = 1;
-        while (archive.pointer() > 0 && false) { break; } // noop
-        // Use entry name with dedup
-        archive.append(body, { name: uniquePath });
-      } catch (e) {
-        console.error(`Failed to add ${file.name} to ZIP:`, e);
+      // Add files to ZIP
+      for (const file of files) {
+        try {
+          const command = new GetObjectCommand({
+            Bucket: process.env.S3_BUCKET || "file-sharing-prod",
+            Key: file.s3Key,
+          });
+          const response = await s3Client.send(command);
+          
+          if (!response.Body) continue;
+          
+          const byteArray = await response.Body.transformToByteArray();
+          const buffer = Buffer.from(byteArray);
+  
+          const folderPath = await buildFolderPath(file.folderId);
+          const zipPath = folderPath ? `${folderPath}/${file.name}` : file.name;
+  
+          let uniquePath = zipPath;
+          archive.append(buffer, { name: uniquePath });
+        } catch (e) {
+          console.error(`Failed to add ${file.name} to ZIP:`, e);
+        }
       }
-    }
 
     // Finalize archive
     archive.finalize();
