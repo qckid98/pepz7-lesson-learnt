@@ -17,6 +17,7 @@ export const ALLOWED_FILE_TYPES: Record<string, { maxSize: number }> = {
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": { maxSize: MAX_FILE_SIZE },
   "text/plain": { maxSize: MAX_FILE_SIZE },
   "text/csv": { maxSize: MAX_FILE_SIZE },
+  "application/x-las": { maxSize: MAX_FILE_SIZE }, // Format Log ASCII Standard (Geophysics)
   // Images
   "image/jpeg": { maxSize: MAX_FILE_SIZE },
   "image/png": { maxSize: MAX_FILE_SIZE },
@@ -108,7 +109,7 @@ export function getFileCategory(mimeType: string, extension?: string): string {
   if (["xls", "xlsx", "xlsm", "xlsb", "csv"].includes(ext)) return "spreadsheet";
   if (["doc", "docx"].includes(ext)) return "document";
   if (["ppt", "pptx"].includes(ext)) return "presentation";
-  if (["txt", "md", "log"].includes(ext)) return "text";
+  if (["txt", "md", "log", "las"].includes(ext)) return "text";
   if (["zip", "rar", "7z", "gz", "tar", "bz2"].includes(ext)) return "archive";
 
   if (mt.startsWith("image/")) return "image";

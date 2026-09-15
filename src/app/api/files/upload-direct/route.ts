@@ -23,6 +23,7 @@ const EXT_TO_MIME: Record<string, string> = {
   pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   txt: "text/plain",
   csv: "text/csv",
+  las: "application/x-las",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   png: "image/png",
