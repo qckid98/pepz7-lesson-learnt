@@ -11,6 +11,8 @@ export const ALLOWED_FILE_TYPES: Record<string, { maxSize: number }> = {
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxSize: MAX_FILE_SIZE },
   "application/vnd.ms-excel": { maxSize: MAX_FILE_SIZE },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { maxSize: MAX_FILE_SIZE },
+  "application/vnd.ms-excel.sheet.macroenabled.12": { maxSize: MAX_FILE_SIZE },
+  "application/vnd.ms-excel.sheet.macroEnabled.12": { maxSize: MAX_FILE_SIZE },
   "application/vnd.ms-powerpoint": { maxSize: MAX_FILE_SIZE },
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": { maxSize: MAX_FILE_SIZE },
   "text/plain": { maxSize: MAX_FILE_SIZE },
@@ -103,7 +105,7 @@ export function getFileCategory(mimeType: string, extension?: string): string {
   if (["mp4", "webm", "mov", "avi", "mkv"].includes(ext)) return "video";
   if (["mp3", "wav", "ogg", "flac", "aac"].includes(ext)) return "audio";
   if (ext === "pdf") return "pdf";
-  if (["xls", "xlsx", "csv"].includes(ext)) return "spreadsheet";
+  if (["xls", "xlsx", "xlsm", "xlsb", "csv"].includes(ext)) return "spreadsheet";
   if (["doc", "docx"].includes(ext)) return "document";
   if (["ppt", "pptx"].includes(ext)) return "presentation";
   if (["txt", "md", "log"].includes(ext)) return "text";
