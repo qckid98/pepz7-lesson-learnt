@@ -84,49 +84,65 @@ export async function POST(request: NextRequest) {
     // Create ZIP stream
     const passthrough = new PassThrough();
     const archive = (archiver as any).create("zip", { zlib: { level: 5 } });
+
+    archive.on("error", (err: any) => {
+      console.error("Archive error:", err);
+    });
+
     archive.pipe(passthrough);
 
-      // Add files to ZIP
-      for (const file of files) {
-        try {
-          const command = new GetObjectCommand({
-            Bucket: process.env.S3_BUCKET || "file-sharing-prod",
-            Key: file.s3Key,
-          });
-          const response = await s3Client.send(command);
-          
-          if (!response.Body) continue;
-          
-          const byteArray = await response.Body.transformToByteArray();
-          const buffer = Buffer.from(byteArray);
-  
-          const folderPath = await buildFolderPath(file.folderId);
-          const zipPath = folderPath ? `${folderPath}/${file.name}` : file.name;
-  
-          let uniquePath = zipPath;
-          archive.append(buffer, { name: uniquePath });
-        } catch (e) {
-          console.error(`Failed to add ${file.name} to ZIP:`, e);
-        }
-      }
+    const stream = new ReadableStream({
+      start(controller) {
+        passthrough.on("data", (chunk) => {
+          controller.enqueue(new Uint8Array(chunk));
+        });
+        passthrough.on("end", () => {
+          controller.close();
+        });
+        passthrough.on("error", (err) => {
+          controller.error(err);
+        });
 
-    // Finalize archive
-    archive.finalize();
+        (async () => {
+          for (const file of files) {
+            try {
+              const command = new GetObjectCommand({
+                Bucket: process.env.S3_BUCKET || "file-sharing-prod",
+                Key: file.s3Key,
+              });
+              const response = await s3Client.send(command);
+              
+              if (!response.Body) continue;
+              
+              const bodyStream = response.Body as Readable;
+              
+              const folderPath = await buildFolderPath(file.folderId);
+              const zipPath = folderPath ? `${folderPath}/${file.name}` : file.name;
+      
+              archive.append(bodyStream, { name: zipPath });
+              
+              await new Promise<void>((resolve, reject) => {
+                bodyStream.on("end", resolve);
+                bodyStream.on("error", reject);
+              });
 
-    // Convert stream to buffer
-    const chunks: Buffer[] = [];
-    for await (const chunk of passthrough) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    const zipBuffer = Buffer.concat(chunks);
+            } catch (e) {
+              console.error(`Failed to add ${file.name} to ZIP:`, e);
+            }
+          }
+          archive.finalize();
+        })();
+      },
+      cancel() {
+        archive.abort();
+      },
+    });
 
-    // Return ZIP
     const headers = new Headers();
     headers.set("Content-Type", "application/zip");
     headers.set("Content-Disposition", `attachment; filename="download.zip"`);
-    headers.set("Content-Length", zipBuffer.length.toString());
 
-    return new NextResponse(new Uint8Array(zipBuffer), { headers });
+    return new NextResponse(stream, { headers });
   } catch (error) {
     console.error("Bulk download error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
