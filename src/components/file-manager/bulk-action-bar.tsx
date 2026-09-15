@@ -8,6 +8,7 @@ interface BulkActionBarProps {
   selectedIds: Set<string>;
   files: FileItem[];
   folders: FolderItem[];
+  isAdmin: boolean;
   onClearSelection: () => void;
   onTrash: (fileIds: string[], folderIds: string[]) => void;
   onBulkRestore: (ids: string[]) => void;
@@ -48,16 +49,18 @@ export default function BulkActionBar(props: BulkActionBarProps) {
           <button onClick={handleZipDownload} className="text-blue-600 hover:underline">
             Download ZIP
           </button>
-          <button
-            onClick={() => props.onTrash(selectedFileIds, selectedFolderIds)}
-            className="text-red-600 hover:underline"
-          >
-            Hapus
-          </button>
+          {props.isAdmin && (
+            <button
+              onClick={() => props.onTrash(selectedFileIds, selectedFolderIds)}
+              className="text-red-600 hover:underline"
+            >
+              Hapus
+            </button>
+          )}
           <button onClick={props.onClearSelection} className="text-gray-500 hover:underline">Batal</button>
         </>
       )}
-      {props.viewMode === "trash" && (
+      {props.isAdmin && props.viewMode === "trash" && (
         <>
           <button
             onClick={() => props.onBulkRestore(selectedIdArray)}

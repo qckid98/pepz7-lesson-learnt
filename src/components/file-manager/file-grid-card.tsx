@@ -48,12 +48,12 @@ export default function FileGridCard(props: GridCardProps) {
           : "border-transparent hover:border-gray-200 hover:bg-white hover:shadow-sm hover:-translate-y-0.5"
       }`}
     >
-      {props.isAdmin && props.selectMode && (
+      {props.selectMode && (
         <div className="absolute top-2 left-2 z-10 animate-in zoom-in-95 duration-200">
           <input type="checkbox" checked={props.selected} onChange={() => props.onToggleSelect()} onClick={(e) => e.stopPropagation()} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
         </div>
       )}
-      {props.isAdmin && !props.selectMode && (
+      {!props.selectMode && (
         <div className={`absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${props.selected ? "opacity-100" : ""}`}>
           <input type="checkbox" checked={props.selected} onChange={() => props.onToggleSelect()} onClick={(e) => e.stopPropagation()} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
         </div>

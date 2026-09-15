@@ -43,41 +43,43 @@ export default function ExplorerToolbar(props: ToolbarProps) {
           <MenuIcon className="w-5 h-5" />
         </button>
       )}
-      {isAdmin && (
+      
+      {/* Upload & Folders (Admin Only) */}
+      {isAdmin && props.viewMode !== "trash" && (
         <>
-          {props.viewMode !== "trash" && (
-            <>
-              <button onClick={props.onUploadClick} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-blue-600 text-white text-xs sm:text-sm rounded-lg hover:bg-blue-700 transition">
-                <UploadIcon className="w-4 h-4" /> <span className="hidden sm:inline">Upload</span>
-              </button>
-              {props.onFolderUploadClick && (
-                <button onClick={props.onFolderUploadClick} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg hover:bg-gray-50 transition">
-                  <FolderIcon className="w-4 h-4" /> <span className="hidden sm:inline">Upload Folder</span>
-                </button>
-              )}
-              <button onClick={props.onNewFolder} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg hover:bg-gray-50 transition">
-                <PlusIcon className="w-4 h-4" /> <span className="hidden sm:inline">Folder Baru</span>
-              </button>
-            </>
-          )}
-          {props.onToggleSelectMode && (
-            <button
-              onClick={props.onToggleSelectMode}
-              className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-lg transition ${
-                props.selectMode
-                  ? "bg-blue-600 text-white hover:bg-blue-700"
-                  : "border border-gray-300 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              <CheckSquareIcon className="w-4 h-4" /> <span className="hidden sm:inline">{props.selectMode ? "Selesai" : "Pilih"}</span>
+          <button onClick={props.onUploadClick} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-blue-600 text-white text-xs sm:text-sm rounded-lg hover:bg-blue-700 transition">
+            <UploadIcon className="w-4 h-4" /> <span className="hidden sm:inline">Upload</span>
+          </button>
+          {props.onFolderUploadClick && (
+            <button onClick={props.onFolderUploadClick} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg hover:bg-gray-50 transition">
+              <FolderIcon className="w-4 h-4" /> <span className="hidden sm:inline">Upload Folder</span>
             </button>
           )}
-          {props.viewMode === "trash" && props.onEmptyTrash && (
-            <button onClick={props.onEmptyTrash} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-red-200 text-red-600 text-xs sm:text-sm rounded-lg hover:bg-red-50 transition">
-              <TrashIcon className="w-4 h-4" /> <span className="hidden sm:inline">Kosongkan Trash</span>
-            </button>
-          )}
+          <button onClick={props.onNewFolder} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg hover:bg-gray-50 transition">
+            <PlusIcon className="w-4 h-4" /> <span className="hidden sm:inline">Folder Baru</span>
+          </button>
         </>
+      )}
+
+      {/* Bulk Select Mode (Admin & Public) */}
+      {props.onToggleSelectMode && props.viewMode !== "trash" && (
+        <button
+          onClick={props.onToggleSelectMode}
+          className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-lg transition ${
+            props.selectMode
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : "border border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          <CheckSquareIcon className="w-4 h-4" /> <span className="hidden sm:inline">{props.selectMode ? "Selesai" : "Pilih"}</span>
+        </button>
+      )}
+
+      {/* Empty Trash (Admin Only) */}
+      {isAdmin && props.viewMode === "trash" && props.onEmptyTrash && (
+        <button onClick={props.onEmptyTrash} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-red-200 text-red-600 text-xs sm:text-sm rounded-lg hover:bg-red-50 transition">
+          <TrashIcon className="w-4 h-4" /> <span className="hidden sm:inline">Kosongkan Trash</span>
+        </button>
       )}
       {props.viewMode !== "trash" && props.onSearchChange && (
         <div className="relative flex-1 max-w-xs">

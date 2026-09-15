@@ -462,13 +462,14 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
         )}
 
         {/* Bulk action bar */}
-        {isAdmin && (
+        {selectedCount > 0 && (
           <BulkActionBar
             selectedCount={selectedCount}
             viewMode={store.viewMode}
             selectedIds={store.selectedIds}
             files={store.files}
             folders={store.folders}
+            isAdmin={isAdmin}
             onClearSelection={store.clearSelection}
             onTrash={handleTrash}
             onBulkRestore={handleBulkRestore}
@@ -545,27 +546,23 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
                 />
               ))}
             </div>
-            ) : (
-              <div className="border border-gray-200 rounded-xl overflow-x-auto">
-                <table className="w-full min-w-max">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    {isAdmin ? (
+              ) : (
+                <div className="border border-gray-200 rounded-xl overflow-x-auto">
+                  <table className="w-full table-fixed min-w-[600px]">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
                       <th className="w-10 px-4 py-2 group">
                         <div className={`transition-opacity duration-200 ${allIds.length > 0 && store.selectedIds.size > 0 ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
                           <input type="checkbox" checked={allIds.length > 0 && allIds.every((id) => store.selectedIds.has(id))} onChange={(e) => e.target.checked ? store.selectAll(allIds) : store.clearSelection()} className="w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer" />
                         </div>
                       </th>
-                    ) : (
-                      <th className="w-2 px-0 py-2"></th>
-                    )}
-                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer w-full" onClick={() => store.setSort("name")}>Nama</th>
-                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell whitespace-nowrap">Tipe</th>
-                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer hidden md:table-cell whitespace-nowrap" onClick={() => store.setSort("size")}>Ukuran</th>
-                    <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer hidden sm:table-cell whitespace-nowrap" onClick={() => store.setSort("modified")}>Diubah</th>
-                    <th className="w-10 px-2 py-2"></th>
-                  </tr>
-                </thead>
+                      <th className="text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer" onClick={() => store.setSort("name")}>Nama</th>
+                      <th className="w-24 text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell whitespace-nowrap">Tipe</th>
+                      <th className="w-24 text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer hidden md:table-cell whitespace-nowrap" onClick={() => store.setSort("size")}>Ukuran</th>
+                      <th className="w-32 text-left px-2 py-2 text-xs font-medium text-gray-500 uppercase cursor-pointer hidden sm:table-cell whitespace-nowrap" onClick={() => store.setSort("modified")}>Diubah</th>
+                      <th className="w-10 px-2 py-2"></th>
+                    </tr>
+                  </thead>
                 <tbody ref={listRef} className="divide-y divide-gray-100">
                   {(() => {
                     const virtualItems = rowVirtualizer.getVirtualItems();

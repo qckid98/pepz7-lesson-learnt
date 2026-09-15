@@ -92,7 +92,7 @@ export const useFileManager = create<FileManagerState>((set) => ({
   currentFolderId: null,
   viewMode: "all",
   breadcrumbs: [{ id: null, name: "My Files" }],
-  layout: "list",
+  layout: "grid",
   selectedIds: new Set(),
   lastSelectedId: null,
   sortBy: "name",

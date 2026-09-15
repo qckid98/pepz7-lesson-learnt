@@ -44,18 +44,14 @@ export default function FileListRow(props: ListRowProps) {
       className={`group cursor-pointer transition-colors duration-200 ${
         props.dragOver ? "bg-blue-100" : props.selected ? "bg-blue-50/80" : "hover:bg-gray-50/80"
       }`}
-    >
-      {props.isAdmin ? (
+      >
         <td className="px-4 py-2.5 w-10 relative">
           <div className={`flex items-center justify-center transition-opacity duration-200 ${props.selectMode || props.selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
             <input type="checkbox" checked={props.selected} onChange={() => props.onToggleSelect()} onClick={(e) => e.stopPropagation()} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
           </div>
         </td>
-      ) : (
-        <td className="w-2 px-0 py-2.5"></td>
-      )}
-      <td className="px-2 py-2.5 max-w-[200px] sm:max-w-xs md:max-w-md lg:max-w-lg">
-        <div className="flex items-center gap-2 overflow-hidden">
+        <td className="px-2 py-2.5 truncate">
+          <div className="flex items-center gap-2 overflow-hidden">
           {isFolder ? (
             <FolderIcon className="w-5 h-5 text-blue-400 flex-shrink-0" />
           ) : file?.previewUrl ? (
