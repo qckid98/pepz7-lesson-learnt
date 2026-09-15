@@ -22,6 +22,7 @@ import BulkActionBar from "@/components/file-manager/bulk-action-bar";
 import NewFolderInline from "@/components/file-manager/new-folder-inline";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useSearchParams } from "next/navigation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,6 +49,40 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
   const [confirmState, setConfirmState] = useState<{ open: boolean; msg: string; onConfirm: () => void }>({ open: false, msg: "", onConfirm: () => {} });
   const [gridRef] = useAutoAnimate<HTMLDivElement>();
   const [listRef] = useAutoAnimate<HTMLTableSectionElement>();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const urlFolder = searchParams.get("folder");
+    const urlMode = searchParams.get("mode") as "all" | "recent" | "starred" | "trash" | null;
+
+    if (urlMode && ["all", "recent", "starred", "trash"].includes(urlMode)) {
+      store.setViewMode(urlMode);
+    }
+    
+    if (urlFolder) {
+      store.setCurrentFolder(urlFolder);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlFolder = urlParams.get("folder");
+      const urlMode = urlParams.get("mode") as "all" | "recent" | "starred" | "trash" | null;
+
+      if (urlMode && ["all", "recent", "starred", "trash"].includes(urlMode)) {
+        store.setViewMode(urlMode);
+      } else {
+        store.setViewMode("all");
+      }
+      
+      store.setCurrentFolder(urlFolder || null);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [store]);
 
   // ===== Fetch data =====
   const fetchData = useCallback(async () => {
@@ -162,6 +197,12 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
     store.setCurrentFolder(folderId);
     store.setViewMode("all");
     clearSearch();
+    
+    const url = new URL(window.location.href);
+    if (folderId) url.searchParams.set("folder", folderId);
+    else url.searchParams.delete("folder");
+    url.searchParams.delete("mode");
+    window.history.pushState({ folderId, mode: "all" }, "", url.toString());
   };
 
   // ===== Create folder =====

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   SearchIcon,
@@ -41,7 +40,13 @@ const FILE_TYPES = [
 ];
 
 export default function SearchPage() {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("q") || "";
+    }
+    return "";
+  });
   const [type, setType] = useState("all");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -73,16 +78,17 @@ export default function SearchPage() {
     []
   );
 
-  // Read initial query from URL params
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const q = params.get("q");
+    let q = "";
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      q = params.get("q") || "";
+    }
     if (q) {
-      setTimeout(() => setQuery(q), 0);
-      performSearch(q, type);
+      setTimeout(() => performSearch(q, type), 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [type]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

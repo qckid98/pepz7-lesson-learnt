@@ -7,6 +7,8 @@ import {
   TrashIcon,
   ClockIcon,
   HomeIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
 } from "lucide-react";
 import { useFileManager, type FolderItem } from "@/hooks/use-file-manager";
 import { dragState } from "@/lib/drag-state";
@@ -35,6 +37,14 @@ export default function ExplorerSidebar({ onNavigate, onRefresh, open, onClose, 
   useEffect(() => {
     fetchFolders();
   }, [fetchFolders, storeFolderCount]);
+
+  useEffect(() => {
+    if (typeof localStorage !== "undefined") {
+      const saved = localStorage.getItem("sidebarExpanded");
+      if (saved === "false") store.setSidebarExpanded(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   type TreeNode = FolderItem & { children: TreeNode[] };
 
@@ -110,32 +120,69 @@ export default function ExplorerSidebar({ onNavigate, onRefresh, open, onClose, 
   }
 
   return (
-    <aside className={`fixed lg:static top-0 left-0 h-full w-60 bg-white border-r border-gray-200 flex flex-col overflow-hidden z-50 transition-transform duration-300 lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
-      <div className="p-3 space-y-0.5">
+    <aside
+      className={`fixed lg:static top-0 left-0 h-full bg-white border-r border-gray-200 flex flex-col z-50 transition-all duration-300 ease-in-out ${
+        open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      } ${store.sidebarExpanded ? "w-60" : "w-16"}`}
+    >
+      <div className={`p-3 space-y-0.5 flex flex-col ${store.sidebarExpanded ? "items-stretch" : "items-center"}`}>
         {navItems.map((item) => (
           <button
             key={item.mode}
-            onClick={() => { store.setViewMode(item.mode); if (item.mode === "all") onNavigate(null); }}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition ${
-              store.viewMode === item.mode ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700 hover:bg-gray-100"
+            onClick={() => {
+              store.setViewMode(item.mode);
+              
+              const url = new URL(window.location.href);
+              if (item.mode === "all") {
+                onNavigate(null);
+              } else {
+                url.searchParams.set("mode", item.mode);
+                url.searchParams.delete("folder");
+                window.history.pushState({ mode: item.mode }, "", url.toString());
+              }
+            }}
+            title={!store.sidebarExpanded ? item.label : undefined}
+            className={`flex items-center gap-2.5 rounded-lg text-sm transition ${
+              store.sidebarExpanded ? "w-full px-3 py-2" : "w-10 h-10 justify-center"
+            } ${
+              store.viewMode === item.mode
+                ? "bg-blue-50 text-blue-700 font-medium"
+                : "text-gray-700 hover:bg-gray-100"
             }`}
           >
-            {item.icon}
-            {item.label}
+            <div className="flex-shrink-0">{item.icon}</div>
+            {store.sidebarExpanded && <span className="truncate">{item.label}</span>}
           </button>
         ))}
       </div>
 
       <div className="border-t border-gray-100" />
-      <div className="px-3 py-2">
-        <p className="text-xs font-semibold text-gray-500 uppercase mb-1 px-2">Folders</p>
-      </div>
-      <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-0.5">
-        {tree.length === 0 ? (
-          <p className="text-xs text-gray-500 px-2 py-2">Belum ada folder</p>
-        ) : (
-          renderTreeNodes(tree)
-        )}
+      
+      {store.sidebarExpanded ? (
+        <>
+          <div className="px-3 py-2 flex items-center justify-between">
+            <p className="text-xs font-semibold text-gray-500 uppercase px-2">Folders</p>
+          </div>
+          <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-0.5">
+            {tree.length === 0 ? (
+              <p className="text-xs text-gray-500 px-2 py-2">Belum ada folder</p>
+            ) : (
+              renderTreeNodes(tree)
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="flex-1" />
+      )}
+
+      <div className="p-3 border-t border-gray-100 hidden lg:flex justify-center">
+        <button
+          onClick={() => store.setSidebarExpanded(!store.sidebarExpanded)}
+          className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
+          title={store.sidebarExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
+        >
+          {store.sidebarExpanded ? <PanelLeftCloseIcon className="w-5 h-5" /> : <PanelLeftOpenIcon className="w-5 h-5" />}
+        </button>
       </div>
     </aside>
   );

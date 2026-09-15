@@ -67,6 +67,7 @@ export interface FileManagerState {
   contextMenu: { x: number; y: number; type: "file" | "folder"; id: string } | null;
   renamingId: string | null;
   dragOverFolderId: string | null;
+  sidebarExpanded: boolean;
 
   // Actions
   setCurrentFolder: (id: string | null) => void;
@@ -84,6 +85,7 @@ export interface FileManagerState {
   setRenamingId: (id: string | null) => void;
   setDragOverFolderId: (id: string | null) => void;
   setBreadcrumbs: (crumbs: BreadcrumbItem[]) => void;
+  setSidebarExpanded: (expanded: boolean) => void;
 }
 
 export const useFileManager = create<FileManagerState>((set) => ({
@@ -101,6 +103,7 @@ export const useFileManager = create<FileManagerState>((set) => ({
   contextMenu: null,
   renamingId: null,
   dragOverFolderId: null,
+  sidebarExpanded: true,
 
   setCurrentFolder: (id) =>
     set({ currentFolderId: id, selectedIds: new Set(), lastSelectedId: null }),
@@ -136,4 +139,10 @@ export const useFileManager = create<FileManagerState>((set) => ({
   setRenamingId: (id) => set({ renamingId: id }),
   setDragOverFolderId: (id) => set({ dragOverFolderId: id }),
   setBreadcrumbs: (crumbs) => set({ breadcrumbs: crumbs }),
+  setSidebarExpanded: (expanded) => {
+    set({ sidebarExpanded: expanded });
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("sidebarExpanded", expanded ? "true" : "false");
+    }
+  },
 }));
