@@ -3,17 +3,12 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { s3Client } from "@/lib/s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-import * as archiver from "archiver";
-import { Readable, PassThrough } from "stream";
+import { ZipArchive } from "archiver";
+import { PassThrough } from "stream";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-/**
- * POST /api/files/bulk-download
- * Download multiple files as ZIP
- * Body: { fileIds: string[], folderIds: string[] }
- */
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -31,11 +26,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No files selected" }, { status: 400 });
     }
 
-    // Collect all file IDs (including from folders)
     const allFileIds = [...fIds];
 
-    // Recursively get files from folders
-    async function getFilesFromFolder(folderId: string) {
+    async function collectFolderFiles(folderId: string) {
       const files = await db.file.findMany({
         where: { folderId, deletedAt: null },
         select: { id: true },
@@ -47,25 +40,23 @@ export async function POST(request: NextRequest) {
         select: { id: true },
       });
       for (const sub of subFolders) {
-        await getFilesFromFolder(sub.id);
+        await collectFolderFiles(sub.id);
       }
     }
 
     for (const folderId of flIds) {
-      await getFilesFromFolder(folderId);
+      await collectFolderFiles(folderId);
     }
 
     if (allFileIds.length === 0) {
       return NextResponse.json({ error: "No files found" }, { status: 404 });
     }
 
-    // Get file metadata
     const files = await db.file.findMany({
       where: { id: { in: allFileIds }, deletedAt: null },
-      select: { id: true, name: true, s3Key: true, mimeType: true, size: true, folderId: true },
+      select: { id: true, name: true, s3Key: true, folderId: true },
     });
 
-    // Get folder paths for structure
     const folderMap = new Map<string, string>();
     async function buildFolderPath(folderId: string | null): Promise<string> {
       if (!folderId) return "";
@@ -81,65 +72,67 @@ export async function POST(request: NextRequest) {
       return path;
     }
 
-    // Create ZIP stream
+    const archive = new ZipArchive({ zlib: { level: 5 } });
+    const chunks: Buffer[] = [];
     const passthrough = new PassThrough();
-    const archive = (archiver as any).create("zip", { zlib: { level: 5 } });
-
-    archive.on("error", (err: any) => {
-      console.error("Archive error:", err);
-    });
-
     archive.pipe(passthrough);
 
-    const stream = new ReadableStream({
-      start(controller) {
-        passthrough.on("data", (chunk) => {
-          controller.enqueue(new Uint8Array(chunk));
-        });
-        passthrough.on("end", () => {
-          controller.close();
-        });
-        passthrough.on("error", (err) => {
-          controller.error(err);
-        });
-
-        (async () => {
-          for (const file of files) {
-            try {
-              const command = new GetObjectCommand({
-                Bucket: process.env.S3_BUCKET || "file-sharing-prod",
-                Key: file.s3Key,
-              });
-              const response = await s3Client.send(command);
-              
-              if (!response.Body) continue;
-              
-              const byteArray = await response.Body.transformToByteArray();
-              const buffer = Buffer.from(byteArray);
-              
-              const folderPath = await buildFolderPath(file.folderId);
-              const zipPath = folderPath ? `${folderPath}/${file.name}` : file.name;
-      
-              archive.append(buffer, { name: zipPath });
-            } catch (e) {
-              console.error(`Failed to add ${file.name} to ZIP:`, e);
-            }
-          }
-          archive.finalize();
-        })();
-      },
-      cancel() {
-        archive.abort();
-      },
+    passthrough.on("data", (chunk: Buffer) => {
+      chunks.push(chunk);
     });
+
+    const zipFinished = new Promise<void>((resolve, reject) => {
+      passthrough.on("end", resolve);
+      passthrough.on("error", reject);
+    });
+
+    const usedNames = new Set<string>();
+
+    for (const file of files) {
+      const command = new GetObjectCommand({
+        Bucket: process.env.S3_BUCKET || "file-sharing-prod",
+        Key: file.s3Key,
+      });
+      const s3Response = await s3Client.send(command);
+      const bodyStream = s3Response.Body as import("stream").Readable;
+      if (!bodyStream) continue;
+
+      const fileChunks: Buffer[] = [];
+      for await (const chunk of bodyStream) {
+        fileChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      const fileBuffer = Buffer.concat(fileChunks);
+
+      const folderPath = await buildFolderPath(file.folderId);
+      let zipPath = folderPath ? `${folderPath}/${file.name}` : file.name;
+
+      let counter = 1;
+      while (usedNames.has(zipPath)) {
+        const extMatch = file.name.match(/(\.[^.]+)$/);
+        const ext = extMatch ? extMatch[0] : "";
+        const base = extMatch ? file.name.slice(0, -ext.length) : file.name;
+        zipPath = folderPath ? `${folderPath}/${base} (${counter})${ext}` : `${base} (${counter})${ext}`;
+        counter++;
+      }
+      usedNames.add(zipPath);
+
+      archive.append(fileBuffer, { name: zipPath });
+    }
+
+    archive.finalize();
+    await zipFinished;
+
+    const zipBuffer = Buffer.concat(chunks);
 
     const headers = new Headers();
     headers.set("Content-Type", "application/zip");
     headers.set("Content-Disposition", `attachment; filename="download.zip"`);
+    headers.set("Content-Length", zipBuffer.length.toString());
 
-    return new NextResponse(stream, { headers });
+    return new NextResponse(new Uint8Array(zipBuffer), { headers });
   } catch (error) {
     console.error("Bulk download error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

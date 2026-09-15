@@ -22,23 +22,28 @@ export default function BulkActionBar(props: BulkActionBarProps) {
   const selectedFileIds = selectedIdArray.filter((id) => props.files.some((f) => f.id === id));
   const selectedFolderIds = selectedIdArray.filter((id) => props.folders.some((f) => f.id === id));
 
-  const handleZipDownload = () => {
+  const handleZipDownload = async () => {
     if (selectedFileIds.length + selectedFolderIds.length === 0) return;
-    fetch("/api/files/bulk-download", {
+    const res = await fetch("/api/files/bulk-download", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fileIds: selectedFileIds, folderIds: selectedFolderIds }),
-    })
-      .then((res) => res.blob())
-      .then((blob) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "download.zip";
-        a.click();
-        URL.revokeObjectURL(url);
-      })
-      .catch((e) => console.error("ZIP download error:", e));
+    });
+
+    if (!res.ok) {
+      const { toast } = await import("sonner");
+      const data = await res.json().catch(() => null);
+      toast.error(data?.error || "Gagal mengunduh ZIP");
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "download.zip";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
