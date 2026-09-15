@@ -115,8 +115,21 @@ export async function GET(
     const parentTotalFiles = await countAllFiles(folder.id);
     const parentTotalSubFolders = await countAllSubFolders(folder.id);
 
+    const path: { id: string; name: string }[] = [{ id: folder.id, name: folder.name }];
+    let currentParentId = folder.parentId;
+    while (currentParentId) {
+      const parent = await db.folder.findUnique({
+        where: { id: currentParentId },
+        select: { id: true, name: true, parentId: true },
+      });
+      if (!parent) break;
+      path.unshift({ id: parent.id, name: parent.name });
+      currentParentId = parent.parentId;
+    }
+
     return NextResponse.json({
       ...folder,
+      path,
       files: filesWithStringSize,
       children: childrenWithCounts,
       _count: {

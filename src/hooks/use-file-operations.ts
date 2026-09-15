@@ -4,6 +4,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import type { FileManagerState } from "@/hooks/use-file-manager";
 
+import { useQueryClient } from "@tanstack/react-query";
+
 /**
  * File/folder CRUD operations: rename, star, trash, restore, permanent-delete, move.
  * Selection logic (shift-range, ctrl-toggle) lives here too.
@@ -15,6 +17,13 @@ export function useFileOperations(opts: {
 }) {
   const { store, fetchData, confirmAction = (msg, onOk) => { if (window.confirm(msg)) onOk(); } } = opts;
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const queryClient = useQueryClient();
+
+  const invalidateData = () => {
+    queryClient.invalidateQueries({ queryKey: ["folders"] });
+    queryClient.invalidateQueries({ queryKey: ["files"] });
+    fetchData(); // fallback for components not using react-query yet
+  };
 
   const handleRename = async (id: string, type: "file" | "folder", newName: string) => {
     if (!newName.trim()) {
@@ -32,12 +41,12 @@ export function useFileOperations(opts: {
       toast.error("Rename failed");
     }
     store.setRenamingId(null);
-    fetchData();
+    invalidateData();
   };
 
   const handleStar = async (id: string, type: "file" | "folder") => {
     await fetch(`/api/${type}s/${id}/star`, { method: "POST" });
-    fetchData();
+    invalidateData();
   };
 
   const handleTrash = async (fileIds: string[], folderIds: string[]) => {
@@ -60,21 +69,21 @@ export function useFileOperations(opts: {
       }
       store.clearSelection();
       setDeleteLoading(false);
-      fetchData();
+      invalidateData();
     });
   };
 
   const handleRestore = async (id: string) => {
     await fetch(`/api/trash/${id}/restore`, { method: "POST" });
     toast.success("Restored from trash");
-    fetchData();
+    invalidateData();
   };
 
   const handlePermanentDelete = async (id: string) => {
     confirmAction("Hapus permanen? Tidak bisa dikembalikan.", async () => {
       await fetch(`/api/trash/${id}`, { method: "DELETE" });
       toast.success("Deleted permanently");
-      fetchData();
+      invalidateData();
     });
   };
 
@@ -100,7 +109,7 @@ export function useFileOperations(opts: {
     } catch {
       toast.error("Move failed");
     }
-    fetchData();
+    invalidateData();
   };
 
   /**
@@ -134,7 +143,7 @@ export function useFileOperations(opts: {
     }
     toast.success(`${ids.length} item restored`);
     store.clearSelection();
-    fetchData();
+    invalidateData();
   };
 
   const handleBulkPermanentDelete = async (ids: string[], count: number) => {
@@ -144,7 +153,7 @@ export function useFileOperations(opts: {
       }
       toast.success(`${count} item deleted permanently`);
       store.clearSelection();
-      fetchData();
+      invalidateData();
     });
   };
 
@@ -154,7 +163,7 @@ export function useFileOperations(opts: {
         await fetch("/api/trash/empty", { method: "DELETE" });
         toast.success("Trash berhasil dikosongkan");
         store.clearSelection();
-        fetchData();
+        invalidateData();
       } catch {
         toast.error("Gagal mengosongkan trash");
       }

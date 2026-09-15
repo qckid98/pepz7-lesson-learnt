@@ -34,6 +34,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+import { useQuery } from "@tanstack/react-query";
+
 // ============ Main Component ============
 export default function FileManager({ mode = "admin" }: { mode?: "admin" | "viewer" }) {
   const isAdmin = mode === "admin";
@@ -82,50 +84,63 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [store]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ===== Fetch data =====
-  const fetchData = useCallback(async () => {
-    store.setLoading(true);
-    try {
+  const { data: queryData, isLoading, refetch } = useQuery({
+    queryKey: ["files", store.viewMode, store.currentFolderId],
+    queryFn: async () => {
+      let files = [];
+      let folders = [];
+      let path: { id: string; name: string }[] | undefined = undefined;
+
       if (store.viewMode === "recent") {
         const res = await fetch("/api/recent");
         const data = await res.json();
-        store.setData(data.files || [], []);
+        files = data.files || [];
       } else if (store.viewMode === "starred") {
         const res = await fetch("/api/starred");
         const data = await res.json();
-        store.setData(data.files || [], data.folders || []);
+        files = data.files || [];
+        folders = data.folders || [];
       } else if (store.viewMode === "trash") {
         const res = await fetch("/api/trash");
         const data = await res.json();
-        store.setData(data.files || [], data.folders || []);
+        files = data.files || [];
+        folders = data.folders || [];
       } else {
         // "all" — browse folder
         if (store.currentFolderId) {
           const res = await fetch(`/api/folders/${store.currentFolderId}`);
+          if (!res.ok) throw new Error("Folder not found");
           const data = await res.json();
-          store.setData(
-            (data.files || []).map((f: Record<string, unknown>) => ({ ...f, size: f.size as string })),
-            (data.children || []).map((f: Record<string, unknown>) => ({ ...f, _count: f._count as { files: number; children: number } | undefined }))
-          );
+          files = (data.files || []).map((f: Record<string, unknown>) => ({ ...f, size: f.size as string }));
+          folders = (data.children || []).map((f: Record<string, unknown>) => ({ ...f, _count: f._count }));
+          path = data.path;
         } else {
-          // Root: fetch all root folders + root files
           const [foldersRes, filesRes] = await Promise.all([
             fetch("/api/folders"),
             fetch("/api/files?root=true"),
           ]);
           const foldersData = await foldersRes.json();
-          const filesData = await filesRes.ok ? await filesRes.json() : { files: [] };
-          store.setData(filesData.files || [], foldersData);
+          const filesData = filesRes.ok ? await filesRes.json() : { files: [] };
+          files = filesData.files || [];
+          folders = foldersData || [];
         }
       }
-    } catch (e) {
-      console.error("Fetch error:", e);
-    } finally {
-      store.setLoading(false);
+      return { files, folders, path };
     }
-  }, [store.viewMode, store.currentFolderId]);
+  });
+
+  useEffect(() => {
+    if (queryData) {
+      store.setData(queryData.files, queryData.folders);
+    }
+    store.setLoading(isLoading);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryData, isLoading]);
+
+  const fetchData = useCallback(() => refetch(), [refetch]);
 
   // ===== Extracted hooks =====
   const { searchQuery, setSearchQuery, searchResults, searchLoading, clearSearch } = useFileSearch();
@@ -163,34 +178,16 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
   // ===== Breadcrumbs =====
   const rootLabel = isAdmin ? "My Files" : "Shared Files";
   const setBreadcrumbs = store.setBreadcrumbs;
-  const fetchBreadcrumbs = useCallback(async (folderId: string | null) => {
-    if (!folderId) {
-      setBreadcrumbs([{ id: null, name: rootLabel }]);
-      return;
-    }
-    try {
-      const crumbs: { id: string | null; name: string }[] = [];
-      let currentId: string | null = folderId;
-      while (currentId) {
-        const res: Response = await fetch(`/api/folders/${currentId}`);
-        if (!res.ok) break;
-        const f: { id: string; name: string; parentId: string | null } = await res.json();
-        crumbs.unshift({ id: f.id, name: f.name });
-        currentId = f.parentId;
-      }
-      crumbs.unshift({ id: null, name: rootLabel });
-      setBreadcrumbs(crumbs);
-    } catch {
-      import("sonner").then((m) => m.toast.error("Gagal memuat path folder"));
-    }
-  }, [rootLabel, setBreadcrumbs]);
 
   useEffect(() => {
-    if (store.viewMode === "all") fetchBreadcrumbs(store.currentFolderId);
-    else if (store.viewMode === "recent") setBreadcrumbs([{ id: null, name: "Recent" }]);
+    if (store.viewMode === "recent") setBreadcrumbs([{ id: null, name: "Recent" }]);
     else if (store.viewMode === "starred") setBreadcrumbs([{ id: null, name: "Starred" }]);
     else if (store.viewMode === "trash") setBreadcrumbs([{ id: null, name: "Trash" }]);
-  }, [store.viewMode, store.currentFolderId, fetchBreadcrumbs, setBreadcrumbs]);
+    else if (!store.currentFolderId) setBreadcrumbs([{ id: null, name: rootLabel }]);
+    else if (queryData && queryData.path) {
+      setBreadcrumbs([{ id: null, name: rootLabel }, ...queryData.path]);
+    }
+  }, [store.viewMode, store.currentFolderId, queryData, rootLabel, setBreadcrumbs]);
 
   // ===== Actions =====
   const handleNavigate = (folderId: string | null) => {
