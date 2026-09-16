@@ -17,7 +17,19 @@ export const ALLOWED_FILE_TYPES: Record<string, { maxSize: number }> = {
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": { maxSize: MAX_FILE_SIZE },
   "text/plain": { maxSize: MAX_FILE_SIZE },
   "text/csv": { maxSize: MAX_FILE_SIZE },
-  "application/x-las": { maxSize: MAX_FILE_SIZE }, // Format Log ASCII Standard (Geophysics)
+  "application/x-las": { maxSize: MAX_FILE_SIZE },
+  "application/x-dlis": { maxSize: MAX_FILE_SIZE },
+  "application/x-lis": { maxSize: MAX_FILE_SIZE },
+  "application/xml": { maxSize: MAX_FILE_SIZE },
+  "application/x-sqlite3": { maxSize: MAX_FILE_SIZE },
+  "application/vnd.ms-access": { maxSize: MAX_FILE_SIZE },
+  "application/octet-stream": { maxSize: MAX_FILE_SIZE },
+  "application/vnd.google-earth.kml+xml": { maxSize: MAX_FILE_SIZE },
+  "application/vnd.google-earth.kmz": { maxSize: MAX_FILE_SIZE },
+  "image/vnd.dwg": { maxSize: MAX_FILE_SIZE },
+  "image/vnd.dxf": { maxSize: MAX_FILE_SIZE },
+  "application/vnd.ms-visio.drawing": { maxSize: MAX_FILE_SIZE },
+
   // Images
   "image/jpeg": { maxSize: MAX_FILE_SIZE },
   "image/png": { maxSize: MAX_FILE_SIZE },
@@ -109,8 +121,9 @@ export function getFileCategory(mimeType: string, extension?: string): string {
   if (["xls", "xlsx", "xlsm", "xlsb", "csv"].includes(ext)) return "spreadsheet";
   if (["doc", "docx"].includes(ext)) return "document";
   if (["ppt", "pptx"].includes(ext)) return "presentation";
-  if (["txt", "md", "log", "las"].includes(ext)) return "text";
+  if (["txt", "md", "log", "las", "witsml"].includes(ext)) return "text";
   if (["zip", "rar", "7z", "gz", "tar", "bz2"].includes(ext)) return "archive";
+  if (["dlis", "lis", "db", "mdb", "accdb", "shp", "shx", "dbf", "kml", "kmz", "dwg", "dxf", "vsdx"].includes(ext)) return "other";
 
   if (mt.startsWith("image/")) return "image";
   if (mt.startsWith("video/")) return "video";
