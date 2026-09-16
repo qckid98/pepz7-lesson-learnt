@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DownloadIcon, TrashIcon, ArrowLeftIcon, XIcon } from "lucide-react";
 import type { FileItem, FolderItem } from "@/hooks/use-file-manager";
 
 interface BulkActionBarProps {
@@ -55,46 +56,73 @@ export default function BulkActionBar(props: BulkActionBarProps) {
   };
 
   return (
-    <div className="px-3 sm:px-6 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-3 text-sm">
-      <span className="font-medium text-blue-700">{props.selectedCount} dipilih</span>
-      {props.viewMode !== "trash" && (
-        <>
-          <button 
-            onClick={handleZipDownload} 
-            disabled={isDownloading}
-            className={`flex items-center gap-1.5 ${isDownloading ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:underline'}`}
-          >
-            {isDownloading && <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />}
-            {isDownloading ? "Menyiapkan ZIP..." : "Download ZIP"}
-          </button>
-          {props.isAdmin && (
-            <button
-              onClick={() => props.onTrash(selectedFileIds, selectedFolderIds)}
-              className="text-red-600 hover:underline"
+    <div className="px-3 sm:px-6 py-3 bg-blue-50/80 border-b border-blue-100 flex items-center justify-between flex-wrap gap-3">
+      <span className="text-sm font-medium text-blue-700">{props.selectedCount} item dipilih</span>
+      
+      <div className="flex items-center gap-2">
+        {props.viewMode !== "trash" && (
+          <>
+            <button 
+              onClick={handleZipDownload} 
+              disabled={isDownloading}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition ${
+                isDownloading 
+                  ? 'bg-blue-100 text-blue-400 cursor-not-allowed' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+              }`}
             >
-              Hapus
+              {isDownloading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <DownloadIcon className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">{isDownloading ? "Menyiapkan..." : "Download ZIP"}</span>
+              <span className="sm:hidden">{isDownloading ? "Menyiapkan..." : "Download"}</span>
             </button>
-          )}
-          <button onClick={props.onClearSelection} className="text-gray-500 hover:underline">Batal</button>
-        </>
-      )}
-      {props.isAdmin && props.viewMode === "trash" && (
-        <>
-          <button
-            onClick={() => props.onBulkRestore(selectedIdArray)}
-            className="text-green-600 hover:underline"
-          >
-            Restore Semua
-          </button>
-          <button
-            onClick={() => props.onBulkPermanentDelete(selectedIdArray, props.selectedCount)}
-            className="text-red-600 hover:underline"
-          >
-            Hapus Permanen
-          </button>
-          <button onClick={props.onClearSelection} className="text-gray-500 hover:underline">Batal</button>
-        </>
-      )}
+            
+            {props.isAdmin && (
+              <button
+                onClick={() => props.onTrash(selectedFileIds, selectedFolderIds)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 hover:border-red-300 transition shadow-sm"
+              >
+                <TrashIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Hapus</span>
+              </button>
+            )}
+          </>
+        )}
+
+        {props.isAdmin && props.viewMode === "trash" && (
+          <>
+            <button
+              onClick={() => props.onBulkRestore(selectedIdArray)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium bg-white border border-green-200 text-green-700 rounded-lg hover:bg-green-50 hover:border-green-300 transition shadow-sm"
+            >
+              <ArrowLeftIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">Restore Semua</span>
+              <span className="sm:hidden">Restore</span>
+            </button>
+            <button
+              onClick={() => props.onBulkPermanentDelete(selectedIdArray, props.selectedCount)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition shadow-sm"
+            >
+              <TrashIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">Hapus Permanen</span>
+              <span className="sm:hidden">Hapus</span>
+            </button>
+          </>
+        )}
+
+        <div className="w-px h-6 bg-blue-200 mx-1 hidden sm:block"></div>
+        
+        <button 
+          onClick={props.onClearSelection} 
+          className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-blue-100 rounded-lg transition"
+        >
+          <XIcon className="w-4 h-4" />
+          <span className="hidden sm:inline">Batal</span>
+        </button>
+      </div>
     </div>
   );
 }
