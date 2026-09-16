@@ -2,6 +2,8 @@ import { db } from "@/lib/db";
 import { formatFileSize } from "@/lib/validators";
 import { DownloadIcon, FileIcon, TrendingUpIcon } from "lucide-react";
 
+export const revalidate = 60; // Cache this page for 60 seconds
+
 export default async function StatsPage() {
   // Top downloaded files
   const topFiles = await db.file.findMany({

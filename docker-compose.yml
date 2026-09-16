@@ -5,10 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: fileshare-app
+    image: fileshare-app-image
     restart: always
-    ports:
-      - "3000:3000"
     environment:
       - NODE_ENV=production
     env_file:
