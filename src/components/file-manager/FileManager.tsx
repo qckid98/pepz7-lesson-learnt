@@ -87,7 +87,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const { data: queryData, isLoading, refetch } = useQuery({
+  const { data: queryData, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["files", store.viewMode, store.currentFolderId],
     queryFn: async () => {
       let files = [];
@@ -136,9 +136,9 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
     if (queryData) {
       store.setData(queryData.files, queryData.folders);
     }
-    store.setLoading(isLoading);
+    store.setLoading(isLoading || isFetching);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryData, isLoading]);
+  }, [queryData, isLoading, isFetching]);
 
   const fetchData = useCallback(() => refetch(), [refetch]);
 
@@ -272,7 +272,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
     getScrollElement: () => listScrollRef.current,
     estimateSize: () => 45, // approx row height
     overscan: 10,
-    enabled: store.layout === "list" && !store.loading,
+    enabled: store.layout === "list" && !(isLoading || isFetching),
   });
 
   // ===== Drag state =====
@@ -479,7 +479,7 @@ export default function FileManager({ mode = "admin" }: { mode?: "admin" | "view
 
         {/* Content area */}
         <div ref={listScrollRef} className="flex-1 overflow-y-auto px-3 sm:px-6 py-4">
-          {store.loading ? (
+          {(isLoading || isFetching) ? (
             store.layout === "grid" ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 animate-in fade-in duration-300">
                 {Array.from({ length: 12 }).map((_, i) => (
