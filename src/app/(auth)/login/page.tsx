@@ -27,13 +27,13 @@ export default function LoginPage() {
 
       if (result?.error) {
         setError("Email atau password salah");
+        setLoading(false);
       } else {
-        router.push("/");
         router.refresh();
+        router.push("/");
       }
     } catch {
       setError("Terjadi kesalahan. Silakan coba lagi.");
-    } finally {
       setLoading(false);
     }
   }
