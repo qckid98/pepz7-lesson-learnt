@@ -26,9 +26,12 @@ export default function UsersPage() {
     try {
       const res = await fetch("/api/admin/users");
       const data = await res.json();
-      setUsers(data);
-    } catch {
-      setError("Gagal memuat data user");
+      if (!res.ok) throw new Error(data.error || "Gagal memuat data user");
+      
+      setUsers(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setError(err.message || "Gagal memuat data user");
+      setUsers([]);
     } finally {
       setLoading(false);
     }
