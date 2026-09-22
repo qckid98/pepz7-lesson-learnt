@@ -19,6 +19,7 @@ export async function GET() {
       select: {
         id: true,
         email: true,
+        username: true,
         name: true,
         role: true,
         createdAt: true,
@@ -57,13 +58,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password, name, role } = parsed.data;
+    const { email, username, password, name, role } = parsed.data;
 
     // Check if user already exists
-    const existing = await db.user.findUnique({ where: { email } });
+    const existing = await db.user.findFirst({
+      where: {
+        OR: [
+          { email },
+          ...(username ? [{ username }] : [])
+        ]
+      }
+    });
     if (existing) {
       return NextResponse.json(
-        { error: "User with this email already exists" },
+        { error: "User with this email or username already exists" },
         { status: 409 }
       );
     }
@@ -74,6 +82,7 @@ export async function POST(request: NextRequest) {
     const user = await db.user.create({
       data: {
         email,
+        username: username || null,
         password: hashedPassword,
         name,
         role,
@@ -81,6 +90,7 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         email: true,
+        username: true,
         name: true,
         role: true,
         createdAt: true,

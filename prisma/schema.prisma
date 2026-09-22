@@ -19,6 +19,7 @@ enum FolderVisibility {
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
+  username  String?  @unique
   password  String
   name      String
   role      UserRole @default(VIEWER)
@@ -29,6 +30,7 @@ model User {
   downloadLogs  DownloadLog[]
 
   @@index([email])
+  @@index([username])
   @@index([role])
 }
 

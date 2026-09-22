@@ -6,6 +6,7 @@ import { PlusIcon, TrashIcon, EditIcon, UsersIcon, ShieldIcon, XIcon } from "luc
 interface User {
   id: string;
   email: string;
+  username: string | null;
   name: string;
   role: "ADMIN" | "VIEWER";
   createdAt: string;
@@ -15,8 +16,8 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
-  const [form, setForm] = useState({ email: "", password: "", name: "", role: "VIEWER" });
-  const [editForm, setEditForm] = useState({ name: "", email: "", role: "VIEWER", password: "" });
+  const [form, setForm] = useState({ email: "", username: "", password: "", name: "", role: "VIEWER" });
+  const [editForm, setEditForm] = useState({ name: "", email: "", username: "", role: "VIEWER", password: "" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editError, setEditError] = useState("");
@@ -42,10 +43,13 @@ export default function UsersPage() {
     setError("");
 
     try {
+      const bodyToSubmit = { ...form };
+      if (!bodyToSubmit.username) delete (bodyToSubmit as any).username;
+
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(bodyToSubmit),
       });
 
       if (!res.ok) {
@@ -54,7 +58,7 @@ export default function UsersPage() {
         return;
       }
 
-      setForm({ email: "", password: "", name: "", role: "VIEWER" });
+      setForm({ email: "", username: "", password: "", name: "", role: "VIEWER" });
       setShowCreate(false);
       fetchUsers();
     } catch {
@@ -64,7 +68,7 @@ export default function UsersPage() {
 
   const openEdit = (user: User) => {
     setEditUser(user);
-    setEditForm({ name: user.name, email: user.email, role: user.role, password: "" });
+    setEditForm({ name: user.name, email: user.email, username: user.username || "", role: user.role, password: "" });
     setEditError("");
   };
 
@@ -75,9 +79,10 @@ export default function UsersPage() {
     if (!editUser) return;
 
     try {
-      const body: Record<string, string> = {};
+      const body: Record<string, string | null> = {};
       if (editForm.name !== editUser.name) body.name = editForm.name;
       if (editForm.email !== editUser.email) body.email = editForm.email;
+      if (editForm.username !== (editUser.username || "")) body.username = editForm.username || null;
       if (editForm.role !== editUser.role) body.role = editForm.role;
       if (editForm.password) body.password = editForm.password;
 
@@ -186,6 +191,18 @@ export default function UsersPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
+                Username <span className="text-gray-400 font-normal">(opsional)</span>
+              </label>
+              <input
+                type="text"
+                value={form.username}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                placeholder="username123"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Password
               </label>
               <input
@@ -248,6 +265,9 @@ export default function UsersPage() {
                   Email
                 </th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                  Username
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
                   Role
                 </th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">
@@ -266,6 +286,9 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500">
                     {user.email}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    {user.username || <span className="text-gray-300 italic">kosong</span>}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -342,6 +365,17 @@ export default function UsersPage() {
                   value={editForm.email}
                   onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                   required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Username <span className="text-gray-400 font-normal">(opsional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={editForm.username}
+                  onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
               </div>

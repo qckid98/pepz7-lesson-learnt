@@ -16,7 +16,7 @@ export async function GET() {
 
     const user = await db.user.findUnique({
       where: { id: session.user.id },
-      select: { id: true, email: true, name: true, role: true, createdAt: true },
+      select: { id: true, email: true, username: true, name: true, role: true, createdAt: true },
     });
 
     if (!user) {
@@ -49,7 +49,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const updateData: { name?: string; email?: string; password?: string } = {};
+    const updateData: { name?: string; email?: string; username?: string | null; password?: string } = {};
 
     // Update name
     if (body.name !== undefined) {
@@ -70,6 +70,20 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: "Email sudah digunakan user lain" }, { status: 409 });
       }
       updateData.email = body.email.trim();
+    }
+
+    // Update username
+    if (body.username !== undefined) {
+      if (body.username && body.username.trim() !== "") {
+        const usernameStr = body.username.trim();
+        const existing = await db.user.findFirst({ where: { username: usernameStr } });
+        if (existing && existing.id !== userId) {
+          return NextResponse.json({ error: "Username sudah digunakan user lain" }, { status: 409 });
+        }
+        updateData.username = usernameStr;
+      } else {
+        updateData.username = null;
+      }
     }
 
     // Update password (requires current password verification)
@@ -107,7 +121,7 @@ export async function PATCH(request: NextRequest) {
     const updated = await db.user.update({
       where: { id: userId },
       data: updateData,
-      select: { id: true, email: true, name: true, role: true, createdAt: true },
+      select: { id: true, email: true, username: true, name: true, role: true, createdAt: true },
     });
 
     return NextResponse.json(updated);

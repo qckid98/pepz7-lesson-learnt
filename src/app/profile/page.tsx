@@ -8,6 +8,7 @@ import { UserIcon, MailIcon, LockIcon, ShieldIcon, SaveIcon } from "lucide-react
 interface ProfileData {
   id: string;
   email: string;
+  username: string | null;
   name: string;
   role: string;
   createdAt: string;
@@ -18,6 +19,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(true);
@@ -36,6 +38,7 @@ export default function ProfilePage() {
         setProfile(data);
         setName(data.name);
         setEmail(data.email);
+        setUsername(data.username || "");
       })
       .catch(() => router.push("/login"))
       .finally(() => setLoading(false));
@@ -47,9 +50,10 @@ export default function ProfilePage() {
     setError("");
     setSuccess("");
 
-    const body: Record<string, string> = {};
+    const body: Record<string, string | null> = {};
     if (name !== profile?.name) body.name = name;
     if (email !== profile?.email) body.email = email;
+    if (username !== (profile?.username || "")) body.username = username || null;
     if (newPassword) {
       body.currentPassword = currentPassword;
       body.newPassword = newPassword;
@@ -129,6 +133,7 @@ export default function ProfilePage() {
             <div>
               <p className="text-lg font-bold text-gray-900">{profile?.name}</p>
               <p className="text-sm text-gray-500">{profile?.email}</p>
+              <p className="text-sm text-gray-400">@{profile?.username || <span className="italic">belum set username</span>}</p>
               <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full mt-1 ${
                 profile?.role === "ADMIN"
                   ? "bg-purple-100 text-purple-700"
@@ -192,6 +197,21 @@ export default function ProfilePage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
+          </div>
+
+          {/* Username */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+              <UserIcon className="w-4 h-4 text-gray-400" />
+              Username <span className="text-gray-400 font-normal">(opsional)</span>
+            </label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              placeholder="username123"
             />
           </div>
 

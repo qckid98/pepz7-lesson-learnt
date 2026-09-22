@@ -79,13 +79,14 @@ export const updateFolderSchema = z.object({
 
 export const createUserSchema = z.object({
   email: z.string().email(),
+  username: z.string().min(3).max(30).optional().nullable(),
   password: z.string().min(6),
   name: z.string().min(1).max(100),
   role: z.enum(["ADMIN", "VIEWER"]).default("VIEWER"),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  identifier: z.string().min(1),
   password: z.string().min(1),
 });
 

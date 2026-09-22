@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,7 +20,7 @@ export default function LoginPage() {
 
     try {
       const result = await signIn("credentials", {
-        email,
+        identifier,
         password,
         redirect: false,
       });
@@ -63,20 +63,20 @@ export default function LoginPage() {
 
           <div className="mb-4">
             <label
-              htmlFor="email"
+              htmlFor="identifier"
               className="block text-sm font-medium text-gray-700 mb-1"
             >
-              Email
+              Email atau Username
             </label>
             <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              id="identifier"
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
               disabled={loading}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:opacity-50 disabled:bg-gray-100"
-              placeholder="nama@email.com"
+              placeholder="nama@email.com atau username"
             />
           </div>
 

@@ -29,6 +29,7 @@ export async function PATCH(
     const updateData: {
       name?: string;
       email?: string;
+      username?: string | null;
       role?: "ADMIN" | "VIEWER";
       password?: string;
     } = {};
@@ -50,6 +51,19 @@ export async function PATCH(
         return NextResponse.json({ error: "Email already in use" }, { status: 409 });
       }
       updateData.email = body.email.trim();
+    }
+
+    if (body.username !== undefined) {
+      if (body.username && body.username.trim() !== "") {
+        const usernameStr = body.username.trim();
+        const existing = await db.user.findFirst({ where: { username: usernameStr } });
+        if (existing && existing.id !== id) {
+          return NextResponse.json({ error: "Username already in use" }, { status: 409 });
+        }
+        updateData.username = usernameStr;
+      } else {
+        updateData.username = null;
+      }
     }
 
     if (body.role !== undefined) {
@@ -79,7 +93,7 @@ export async function PATCH(
     const updated = await db.user.update({
       where: { id },
       data: updateData,
-      select: { id: true, email: true, name: true, role: true, createdAt: true },
+      select: { id: true, email: true, username: true, name: true, role: true, createdAt: true },
     });
 
     return NextResponse.json(updated);
