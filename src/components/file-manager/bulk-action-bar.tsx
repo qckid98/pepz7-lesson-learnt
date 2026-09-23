@@ -53,6 +53,10 @@ export default function BulkActionBar(props: BulkActionBarProps) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download ZIP error:", error);
+      const { toast } = await import("sonner");
+      toast.error("Gagal mengunduh ZIP. Silakan coba lagi.");
     } finally {
       setIsDownloading(false);
     }
