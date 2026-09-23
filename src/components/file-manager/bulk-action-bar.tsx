@@ -27,13 +27,20 @@ export default function BulkActionBar(props: BulkActionBarProps) {
   const selectedFolderIds = selectedIdArray.filter((id) => props.folders.some((f) => f.id === id));
 
   const handleZipDownload = async () => {
-    if (selectedFileIds.length + selectedFolderIds.length === 0) return;
+    // If strict matching yields nothing but we actually have selected IDs, 
+    // it means the selection state contains items not currently visible in props.files/folders (e.g. across pages).
+    // In this case, we'll blindly send the IDs as fileIds to the backend.
+    const fileIdsToSend = selectedFileIds.length > 0 ? selectedFileIds : selectedIdArray;
+    const folderIdsToSend = selectedFolderIds;
+
+    if (fileIdsToSend.length === 0 && folderIdsToSend.length === 0) return;
+
     setIsDownloading(true);
     try {
       const res = await fetch("/api/files/bulk-download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileIds: selectedFileIds, folderIds: selectedFolderIds }),
+        body: JSON.stringify({ fileIds: fileIdsToSend, folderIds: folderIdsToSend }),
       });
 
       if (!res.ok) {
