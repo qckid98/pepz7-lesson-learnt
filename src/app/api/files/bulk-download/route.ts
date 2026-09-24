@@ -3,7 +3,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { s3Client } from "@/lib/s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-import * as archiver from "archiver";
+// Require used to bypass TypeScript/Turbopack import quirks with this specific package
+const archiver = require("archiver");
 import { PassThrough, Readable } from "stream";
 
 export const runtime = "nodejs";
