@@ -120,7 +120,8 @@ export async function POST(request: NextRequest) {
     headers.set("Content-Disposition", `attachment; filename="download.zip"`);
 
     // Stream the response directly to the client
-    return new NextResponse(Readable.toWeb(passthrough) as any, { headers });
+    // @ts-ignore - Readable.toWeb is available in Node 16+ but TS types might complain
+    return new NextResponse(Readable.toWeb ? Readable.toWeb(passthrough) : passthrough as any, { headers });
   } catch (error) {
     console.error("Bulk download error:", error);
     const message = error instanceof Error ? error.message : "Internal server error";
