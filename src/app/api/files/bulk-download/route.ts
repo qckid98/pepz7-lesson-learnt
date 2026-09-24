@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { s3Client } from "@/lib/s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-import archiver from "archiver";
+import * as archiver from "archiver";
 import { PassThrough, Readable } from "stream";
 
 export const runtime = "nodejs";
